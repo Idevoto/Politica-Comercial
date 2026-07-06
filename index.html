@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Política Comercial — División Farmacias</title>
+  <meta name="description" content="Política comercial de la fuerza de ventas: descuentos, módulos y cuentas especiales.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+
+  <link rel="stylesheet" href="assets/css/styles.css?v=19">
+  <link rel="icon" href="assets/logos/division-farmacias.svg" type="image/svg+xml">
+</head>
+<body>
+
+  <!-- ===================== LOADING ===================== -->
+  <div id="loading-screen">
+    <div class="loading-box">
+      <div class="loading-spinner"></div>
+      <p>Cargando política comercial…</p>
+    </div>
+  </div>
+
+  <!-- ===================== FILE LOADER (fallback manual) ===================== -->
+  <div id="file-loader-screen" hidden>
+    <div class="loader-card">
+      <img class="brand-mark" src="assets/logos/division-farmacias.svg" alt="División Farmacias"
+           onerror="this.replaceWith(Object.assign(document.createElement('div'),{innerHTML:'<i class=\'fa-solid fa-prescription-bottle-medical\' style=\'font-size:30px;color:var(--brand)\'></i>',style:'margin-bottom:18px'}))">
+      <h2 id="loader-title">Cargá el archivo Excel</h2>
+      <p id="loader-sub">Seleccioná el Excel de política comercial para empezar.</p>
+      <div id="loader-banner" class="loader-error" hidden style="color:var(--text-muted);"></div>
+      <div class="dropzone" id="dropzone">
+        <i class="fa-solid fa-file-arrow-up"></i>
+        <span>Arrastrá el archivo aquí, o hacé clic para elegirlo</span>
+      </div>
+      <input type="file" id="file-input" accept=".xlsx,.xlsm,.xls" hidden>
+      <div class="loader-error" id="loader-error"></div>
+    </div>
+  </div>
+
+  <!-- ===================== APP SHELL ===================== -->
+  <div id="app" hidden>
+    <div id="sidebar-backdrop"></div>
+    <aside id="sidebar">
+      <div class="sidebar-brand">
+        <div class="mark">DF</div>
+        <div class="label">División Farmacias<small>Política Comercial</small></div>
+      </div>
+      <nav class="nav-section" id="nav-section"></nav>
+      <div class="sidebar-foot">
+        <button class="btn btn-ghost" id="btn-update-data"><i class="fa-solid fa-rotate"></i> Actualizar Excel</button>
+      </div>
+    </aside>
+
+    <div id="main">
+      <header id="topbar">
+        <div id="sidebar-toggle" class="icon-btn"><i class="fa-solid fa-bars"></i></div>
+        <div class="search-shell">
+          <i class="fa-solid fa-magnifying-glass icon-search"></i>
+          <input type="text" id="topbar-search" class="search-input" placeholder="Buscar producto, laboratorio o código...">
+          <div id="topbar-search-panel"></div>
+        </div>
+        <div class="topbar-spacer"></div>
+        <div class="topbar-month"><i class="fa-regular fa-calendar"></i> <span id="topbar-month-label"></span></div>
+        <div class="icon-btn" id="btn-theme"><i class="fa-solid fa-moon"></i></div>
+      </header>
+      <main id="page-content"></main>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <script src="assets/js/excelParser.js?v=19"></script>
+  <script src="assets/js/state.js?v=19"></script>
+  <script src="assets/js/ui.js?v=19"></script>
+  <script src="assets/js/pages.js?v=19"></script>
+  <script src="assets/js/app.js?v=19"></script>
+</body>
+</html>
