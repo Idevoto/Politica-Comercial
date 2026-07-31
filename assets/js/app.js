@@ -72,10 +72,7 @@
 
   // ---------- Carga automática (fetch) ----------
   function tryAutoFetch() {
-    // El "?t=" con la hora actual evita que GitHub Pages (o cualquier CDN) sirva
-    // una copia vieja cacheada del Excel cuando se reemplaza el archivo.
-    const url = State.EXCEL_PATH + '?t=' + Date.now();
-    return fetch(url, { cache: 'no-store' })
+    return fetch(State.EXCEL_PATH, { cache: 'no-store' })
       .then((res) => {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.arrayBuffer();
@@ -168,13 +165,65 @@
     }
   }
 
+  // ============================================================
+  //  CONTRASEÑA DE ADMINISTRACIÓN
+  //  Cambiá el valor de abajo por la contraseña que quieras usar.
+  //  (Recordá: al ser una app sin servidor, esta clave no es un
+  //   candado "de seguridad" fuerte, solo oculta el botón del
+  //   usuario común.)
+  // ============================================================
+  const ADMIN_PASSWORD = 'Nacho123';
+  const LS_ADMIN_UNLOCKED = 'pf_admin_unlocked_v1';
+
+  function isAdminUnlocked() {
+    try { return localStorage.getItem(LS_ADMIN_UNLOCKED) === '1'; } catch (e) { return false; }
+  }
+  function setAdminUnlocked() {
+    try { localStorage.setItem(LS_ADMIN_UNLOCKED, '1'); } catch (e) { /* noop */ }
+  }
+
+  function openUpdateLoader() {
+    showFileLoader(true);
+    document.getElementById('loader-title').textContent = 'Actualizar datos';
+    document.getElementById('loader-sub').textContent = 'Seleccioná el nuevo Excel de política comercial para refrescar la información.';
+  }
+
   function wireUpdateDataButton() {
-    const btn = document.getElementById('btn-update-data');
-    if (!btn) return;
-    btn.addEventListener('click', () => {
-      showFileLoader(true);
-      document.getElementById('loader-title').textContent = 'Actualizar datos';
-      document.getElementById('loader-sub').textContent = 'Seleccioná el nuevo Excel de política comercial para refrescar la información.';
+    const lock = document.getElementById('btn-admin-lock');
+    if (!lock) return;
+
+    // Si ya estaba desbloqueado en este navegador, mostramos el candado abierto.
+    function refreshLockIcon() {
+      const icon = lock.querySelector('i');
+      if (!icon) return;
+      if (isAdminUnlocked()) {
+        icon.className = 'fa-solid fa-lock-open';
+        lock.title = 'Actualizar Excel';
+        lock.classList.add('unlocked');
+      } else {
+        icon.className = 'fa-solid fa-lock';
+        lock.title = 'Administración';
+        lock.classList.remove('unlocked');
+      }
+    }
+    refreshLockIcon();
+
+    lock.addEventListener('click', () => {
+      if (isAdminUnlocked()) {
+        // Ya desbloqueado: abre directo el cargador de Excel.
+        openUpdateLoader();
+        return;
+      }
+      const intento = window.prompt('Contraseña de administración:');
+      if (intento === null) return; // canceló
+      if (intento === ADMIN_PASSWORD) {
+        setAdminUnlocked();
+        refreshLockIcon();
+        UI.toast('Modo administración activado');
+        openUpdateLoader();
+      } else {
+        UI.toast('Contraseña incorrecta');
+      }
     });
   }
 

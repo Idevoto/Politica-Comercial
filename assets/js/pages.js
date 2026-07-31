@@ -105,6 +105,7 @@
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
         ${UI.labLogo(mod.lab, 46)}
         <div>${UI.labPill(mod.lab)} ${mod.categoria ? `<span class="text-faint" style="font-size:11.5px;margin-left:6px;">${UI.escapeHtml(mod.categoria)}</span>` : ''}</div>
+        <div style="margin-left:auto;">${UI.favToggleModHtml(mod.id)}</div>
       </div>
       <div class="detail-row"><span class="k">Código de módulo</span><span class="v mono">${UI.escapeHtml(mod.codigo || '—')}</span></div>
       <div class="detail-row"><span class="k">Descuento principal</span><span class="v">${UI.discountOrDash(mod.descuentoPrincipal, UI.fmtPctFraction)}</span></div>
@@ -259,6 +260,7 @@
   function pageDescuentos(container, params) {
     const m = model();
     const activeLab = (params && params.lab) || 'todos';
+    const embeddedInLab = !!(params && params.embeddedInLab); // está dentro de la vista de un laboratorio
     const packSet = new Set(m.packEans || []);
     let packsOnly = false;
     let descEspecialOnly = false;
@@ -285,19 +287,47 @@
       </div>
     `;
 
+    let printMode = false; // se activa solo mientras se imprime
     function isMobileView() { return window.innerWidth <= 560; }
     function isDescEspecial(v) { return v != null && Math.abs(Math.abs(v) - 1.45) < 0.001; }
+    // La columna "Especial" solo aplica a Roemmers y Siegfried (y a "Todos", que los incluye).
+    function showsEspecial(lab) { return labShowsPacks(lab); }
 
     function rowsFor(lab) {
       let list = lab === 'todos' ? m.descuentos : m.descuentos.filter((d) => d.lab === lab);
       if (packsOnly) list = list.filter((d) => packSet.has(d.ean));
       const mobile = isMobileView();
+      const conEspecial = showsEspecial(lab);
       if (mobile && descEspecialOnly) list = list.filter((d) => isDescEspecial(d.especial));
       return list.map((d) => {
         const entry = lookupProduct(d.lab, d.ean, d.producto);
         const nMod = entry ? entry.modulos.length : 0;
         const productoCell = `<span data-lab="${UI.escapeHtml(d.lab)}" data-ean="${UI.escapeHtml(d.ean || '')}" data-producto="${UI.escapeHtml(d.producto)}" class="row-open" title="${UI.escapeHtml(d.producto)}" style="cursor:pointer;font-weight:600;">${UI.escapeHtml(d.producto)}</span>`;
         const modChip = nMod ? `<span class="dchip muted sm">${nMod}</span>` : UI.dchip('—', { muted: true, sm: true });
+
+        // --- Impresión: mismas columnas que se ven en pantalla, pero sin la de favorito ---
+        if (printMode) {
+          if (mobile) {
+            const row = [
+              productoCell,
+              UI.discountOrDash(d.exclusivo, UI.fmtPctDirect, { sm: true }),
+              UI.discountOrDash(d.publicado, UI.fmtPctDirect, { sm: true, pub: true }),
+            ];
+            if (conEspecial) row.push(UI.discountOrDash(d.especial, UI.fmtPctDirect, { sm: true }));
+            row.push(modChip);
+            return row;
+          }
+          const row = [
+            UI.labPill(d.lab, 'sm'),
+            productoCell,
+            UI.discountOrDash(d.exclusivo, UI.fmtPctDirect, { sm: true }),
+            UI.discountOrDash(d.publicado, UI.fmtPctDirect, { sm: true, pub: true }),
+          ];
+          if (conEspecial) row.push(UI.discountOrDash(d.especial, UI.fmtPctDirect, { sm: true }));
+          row.push(modChip);
+          return row;
+        }
+
         if (mobile && descEspecialOnly) {
           return [productoCell, UI.discountOrDash(d.especial, UI.fmtPctDirect)];
         }
@@ -310,27 +340,53 @@
             modChip,
           ];
         }
-        return [
+        const row = [
           UI.favToggleHtml(d.lab, d.ean),
           UI.labPill(d.lab, 'sm'),
           productoCell,
           UI.discountOrDash(d.exclusivo, UI.fmtPctDirect),
           UI.discountOrDash(d.publicado, UI.fmtPctDirect, { pub: true }),
-          UI.discountOrDash(d.especial, UI.fmtPctDirect),
-          modChip,
         ];
+        if (conEspecial) row.push(UI.discountOrDash(d.especial, UI.fmtPctDirect));
+        row.push(modChip);
+        return row;
       });
     }
 
-    function mountTable(lab) {
+    function mountTable(lab, stateOverride) {
       if (dtDescuentos) { try { dtDescuentos.destroy(); } catch (e) { /* noop */ } dtDescuentos = null; }
-      // Limpieza completa: si la cantidad de columnas cambia (mobile <-> desktop, p.ej. al
-      // girar el celular, o al activar Desc. Especial), DataTables necesita que la tabla
-      // quede en blanco antes de reiniciar.
+      // Limpieza completa: si la cantidad de columnas cambia (mobile <-> desktop, o
+      // al mostrar/ocultar Especial), DataTables necesita la tabla en blanco antes de reiniciar.
       document.getElementById('tbl-descuentos').innerHTML = '<tbody></tbody>';
       const mobile = isMobileView();
+      const conEspecial = showsEspecial(lab);
       let columns, orderIdx;
-      if (mobile && descEspecialOnly) {
+
+      const colExcl = { title: '<span class="th-full">Exclusivo</span><span class="th-short">Excl.</span>', width: '76px', className: 'td-desc' };
+      const colPubl = { title: '<span class="th-full">Publicado</span><span class="th-short">Publ.</span>', width: '76px', className: 'td-desc' };
+      const colEsp  = { title: '<span class="th-full">Especial</span><span class="th-short">Esp.</span>', width: '76px', className: 'td-desc' };
+      const colMod  = { title: '<span class="th-full">Módulos</span><span class="th-short">Mód.</span>', width: '66px', orderable: false, className: 'td-desc' };
+
+      if (printMode && mobile) {
+        columns = [
+          { title: 'Producto', className: 'td-producto' },
+          { title: 'Excl.', className: 'td-desc' },
+          { title: 'Publ.', className: 'td-desc' },
+        ];
+        if (conEspecial) columns.push({ title: 'Desc. Esp.', className: 'td-desc' });
+        columns.push({ title: 'Mód.', orderable: false, className: 'td-desc' });
+        orderIdx = 0;
+      } else if (printMode) {
+        columns = [
+          { title: 'Laboratorio', width: '95px' },
+          { title: 'Producto', className: 'td-producto' },
+          { title: 'Excl.', className: 'td-desc' },
+          { title: 'Publ.', className: 'td-desc' },
+        ];
+        if (conEspecial) columns.push({ title: 'Desc. Esp.', className: 'td-desc' });
+        columns.push({ title: 'Mód.', orderable: false, className: 'td-desc' });
+        orderIdx = 1;
+      } else if (mobile && descEspecialOnly) {
         columns = [
           { title: 'Producto', className: 'td-producto' },
           { title: 'Descuento Especial', width: '110px' },
@@ -350,13 +406,18 @@
           { width: '26px', orderable: false },
           { title: 'Laboratorio', width: '95px' },
           { title: 'Producto', className: 'td-producto' },
-          { title: '<span class="th-full">Exclusivo</span><span class="th-short">Excl.</span>', width: '76px' },
-          { title: '<span class="th-full">Publicado</span><span class="th-short">Publ.</span>', width: '76px' },
-          { title: '<span class="th-full">Especial</span><span class="th-short">Esp.</span>', width: '76px' },
-          { title: '<span class="th-full">Módulos</span><span class="th-short">Mód.</span>', width: '66px', orderable: false },
+          colExcl,
+          colPubl,
         ];
+        if (conEspecial) columns.push(colEsp);
+        columns.push(colMod);
         orderIdx = 2;
       }
+      // Orden inicial: el que venga en stateOverride (para preservar lo que el
+      // usuario eligió al imprimir), o el orden por defecto de este layout.
+      const initialOrder = (stateOverride && stateOverride.order) ? stateOverride.order : [[orderIdx, 'asc']];
+      const initialSearch = (stateOverride && stateOverride.search) ? stateOverride.search : '';
+
       dtDescuentos = $('#tbl-descuentos').DataTable({
         data: rowsFor(lab),
         columns: columns,
@@ -364,9 +425,10 @@
         pageLength: mobile ? 15 : 25,
         lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'Todos']],
         language: { url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/es-AR.json' },
-        order: [[orderIdx, 'asc']],
-        scrollY: mobile ? '' : '68vh',
-        scrollCollapse: !mobile,
+        order: initialOrder,
+        search: { search: initialSearch },
+        scrollY: (mobile || printMode) ? '' : '68vh',
+        scrollCollapse: !(mobile || printMode),
       });
       $('#tbl-descuentos tbody').off('click').on('click', '.row-open', function () {
         openProductDetail($(this).data('lab'), $(this).data('ean'), $(this).data('producto'));
@@ -392,9 +454,17 @@
 
     container.querySelectorAll('#desc-filters .chip[data-lab]').forEach((chip) => {
       chip.addEventListener('click', () => {
+        const lab = chip.getAttribute('data-lab');
+        // Dentro de la vista de un laboratorio, cambiar de lab navega a la vista de
+        // ese otro laboratorio, para que el título, el logo y los contadores queden
+        // coherentes con la tabla. "Todos" vuelve a la vista general de Descuentos.
+        if (embeddedInLab) {
+          if (lab === 'todos') Router.go('descuentos', {});
+          else Router.go('laboratorios', { lab: lab });
+          return;
+        }
         container.querySelectorAll('#desc-filters .chip[data-lab]').forEach((c) => c.classList.remove('active'));
         chip.classList.add('active');
-        const lab = chip.getAttribute('data-lab');
         const shouldShow = labShowsPacks(lab);
         if (btnPacks) {
           btnPacks.hidden = !shouldShow;
@@ -432,7 +502,48 @@
       });
     }
 
-    container.querySelector('#btn-print-descuentos').addEventListener('click', () => window.print());
+    container.querySelector('#btn-print-descuentos').addEventListener('click', () => {
+      const activeChip = container.querySelector('#desc-filters .chip[data-lab].active');
+      const activeLabNow = activeChip ? activeChip.getAttribute('data-lab') : 'todos';
+      const mobile = isMobileView();
+
+      // Capturamos el estado actual (orden + texto de búsqueda) para conservarlo
+      // en la impresión, tal como el usuario lo dejó en pantalla.
+      const curOrder = dtDescuentos ? dtDescuentos.order() : null;   // p.ej. [[3,'desc']]
+      const curSearch = dtDescuentos ? dtDescuentos.search() : '';
+
+      // Al pasar al layout de impresión se quita la columna de Favorito (que en
+      // pantalla es la primera), así que TODOS los índices de columna se corren 1
+      // a la izquierda. En el layout "Desc. Especial" mobile (2 columnas, sin Fav)
+      // no hay corrimiento. Traducimos el índice de la columna ordenada.
+      const hadFavColumn = !(mobile && descEspecialOnly); // ese layout no tiene Fav
+      const printOrder = (curOrder && curOrder.length)
+        ? curOrder.map(([idx, dir]) => [hadFavColumn ? Math.max(0, idx - 1) : idx, dir])
+        : null;
+
+      printMode = true;
+      mountTable(activeLabNow, { order: printOrder, search: curSearch });
+      if (dtDescuentos) dtDescuentos.page.len(-1).draw(false);
+
+      const restore = () => {
+        printMode = false;
+        // Al volver al layout de pantalla, re-sumamos 1 al índice para deshacer la
+        // traducción y recuperar exactamente el orden/búsqueda que había.
+        const backOrder = (printOrder && printOrder.length)
+          ? printOrder.map(([idx, dir]) => [hadFavColumn ? idx + 1 : idx, dir])
+          : null;
+        mountTable(activeLabNow, { order: backOrder, search: curSearch });
+        window.removeEventListener('afterprint', restore);
+      };
+      window.addEventListener('afterprint', restore);
+
+      // Pequeño respiro para que DataTables termine de redibujar antes de imprimir.
+      setTimeout(() => {
+        window.print();
+        // Respaldo por si el navegador no dispara 'afterprint'.
+        setTimeout(() => { if (printMode) restore(); }, 800);
+      }, 200);
+    });
     container.querySelector('#btn-export-excel-descuentos').addEventListener('click', () => State.downloadCurrentExcel());
   }
 
@@ -459,7 +570,10 @@
         </div>
         <div class="mc-foot">
           <span class="mc-qty">Unidades totales: <b>${mod.cantidadTotal != null ? mod.cantidadTotal : '—'}</b></span>
-          ${UI.labPill(mod.lab, 'sm')}
+          <span class="mc-foot-right">
+            ${UI.favToggleModHtml(mod.id)}
+            ${UI.labPill(mod.lab, 'sm')}
+          </span>
         </div>
       </div>
       <div class="mc-mobile">${moduleCardMobileHtml(mod)}</div>
@@ -479,7 +593,7 @@
     return `
       <div class="mcm-head">
         <div class="mcm-title" title="${UI.escapeHtml(mod.nombre)}">${UI.escapeHtml(mod.nombre)}</div>
-        <div class="mcm-lab">${UI.escapeHtml(mod.lab)}</div>
+        <div class="mcm-lab">${UI.favToggleModHtml(mod.id)} ${UI.escapeHtml(mod.lab)}</div>
       </div>
       <div class="mcm-meta">
         <span>Cód: <b>${UI.escapeHtml(mod.codigo || '—')}</b></span>
@@ -497,6 +611,8 @@
   function moduleListRowHtml(mod) {
     const meta = State.labMeta(mod.lab);
     return `<div class="module-list-row" data-mod-id="${UI.escapeHtml(mod.id)}" style="border-left:3px solid ${meta.bg};">
+      <span class="mlr-fav">${UI.favToggleModHtml(mod.id)}</span>
+      <span class="mlr-lab">${UI.labPill(mod.lab, 'sm')}</span>
       <div class="mlr-main">
         <div class="mlr-name">${UI.escapeHtml(mod.nombre)}</div>
         <div class="mlr-meta">
@@ -508,7 +624,6 @@
       </div>
       <span class="mlr-qty">Unidades: <b>${mod.cantidadTotal != null ? mod.cantidadTotal : '—'}</b></span>
       ${UI.discountOrDash(mod.descuentoPrincipal, UI.fmtPctFraction)}
-      ${UI.labPill(mod.lab, 'sm')}
       <i class="fa-solid fa-chevron-right text-faint" style="font-size:11px;"></i>
     </div>`;
   }
@@ -538,6 +653,25 @@
         <thead><tr><th>Producto</th><th>Unid.</th><th>Desc.</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
+    </div>`;
+  }
+
+  // Fila compacta para imprimir la vista de Lista (una línea por módulo).
+  function moduleRowPrintHtml(mod) {
+    const meta = State.labMeta(mod.lab);
+    const desc = UI.fmtPctFraction(mod.descuentoPrincipal);
+    return `<div class="print-mod-row" style="border-left-color:${meta.bg};">
+      <span class="pmr-lab" style="background:${meta.bg};color:${meta.text};">${UI.escapeHtml(mod.lab)}</span>
+      <div class="pmr-main">
+        <span class="pmr-name">${UI.escapeHtml(mod.nombre)}</span>
+        <span class="pmr-code">${UI.escapeHtml(mod.codigo || '—')}</span>
+        <span class="pmr-prods">${mod.productos.length} producto${mod.productos.length === 1 ? '' : 's'}</span>
+        ${mod.observacion ? `<span class="pmr-obs">${UI.escapeHtml(mod.observacion)}</span>` : ''}
+      </div>
+      <div class="pmr-cols">
+        <span class="pmr-unid">Unid: <b>${mod.cantidadTotal != null ? mod.cantidadTotal : '—'}</b></span>
+        <span class="pmr-desc">${desc != null ? desc : '—'}</span>
+      </div>
     </div>`;
   }
 
@@ -639,7 +773,11 @@
     container.querySelector('#mod-search').addEventListener('input', (e) => { query = e.target.value; render(); });
     container.querySelector('#btn-print-modulos').addEventListener('click', () => {
       const printArea = container.querySelector('#print-modulos-area');
-      printArea.innerHTML = `<div class="print-mod-grid">${lastFiltered.map(moduleCardPrintHtml).join('')}</div>`;
+      if (viewMode === 'list') {
+        printArea.innerHTML = `<div class="print-mod-list">${lastFiltered.map(moduleRowPrintHtml).join('')}</div>`;
+      } else {
+        printArea.innerHTML = `<div class="print-mod-grid">${lastFiltered.map(moduleCardPrintHtml).join('')}</div>`;
+      }
       document.body.classList.add('printing-modulos');
       window.print();
       setTimeout(() => document.body.classList.remove('printing-modulos'), 300);
@@ -677,16 +815,14 @@
     const meta = State.labMeta(lab);
     const nProd = m.descuentos.filter((d) => d.lab === lab).length;
     const nMod = (m.modulosPorLab[lab] || []).length;
-    const nCuentas = new Set(m.cuentasEspeciales.filter((c) => c.lab === lab).map((c) => c.cliente)).size;
 
     container.innerHTML = `
       <div style="margin-bottom:14px;"><span class="chip" id="btn-volver" style="cursor:pointer;"><i class="fa-solid fa-arrow-left"></i> Laboratorios</span></div>
       <div class="page-head">
         <div style="display:flex;align-items:center;gap:14px;">
           ${UI.labLogo(lab, 52)}
-          <div><h1>${UI.escapeHtml(lab)}</h1><p class="subtitle">${nProd} productos con descuento · ${nMod} módulos · ${nCuentas} cuentas con condición propia</p></div>
+          <div><h1>${UI.escapeHtml(lab)}</h1><p class="subtitle">${nProd} productos con descuento · ${nMod} módulos</p></div>
         </div>
-        <div class="page-actions"><button class="btn btn-ghost" id="btn-print-lab"><i class="fa-solid fa-print"></i> Exportar laboratorio</button></div>
       </div>
       <div class="filter-bar">
         <span class="chip active" data-tab="descuentos">Descuentos</span>
@@ -695,11 +831,10 @@
       <div id="lab-tab-output"></div>
     `;
     container.querySelector('#btn-volver').addEventListener('click', () => Router.go('laboratorios', {}));
-    container.querySelector('#btn-print-lab').addEventListener('click', () => window.print());
 
     const out = container.querySelector('#lab-tab-output');
     function showTab(tab) {
-      if (tab === 'descuentos') pageDescuentos(out, { lab });
+      if (tab === 'descuentos') pageDescuentos(out, { lab, embeddedInLab: true });
       else pageModulos(out, { lab });
     }
     container.querySelectorAll('.filter-bar .chip[data-tab]').forEach((chip) => {
@@ -748,25 +883,69 @@
   // FAVORITOS
   // ======================================================================
   let favoritesListener = null;
+  // Busca un módulo por su id único recorriendo todos los laboratorios.
+  function lookupModule(modId) {
+    const m = model();
+    for (const lab of Object.keys(m.modulosPorLab)) {
+      const found = (m.modulosPorLab[lab] || []).find((mo) => mo.id === modId);
+      if (found) return found;
+    }
+    return null;
+  }
+
   function pageFavoritos(container) {
     function render() {
-      const favs = Array.from(State.App.favorites).map((key) => {
+      const favsProd = Array.from(State.App.favorites).map((key) => {
         const [lab, ean] = key.split('|');
         return lookupProduct(lab, ean, null);
       }).filter(Boolean);
 
+      const favsMod = Array.from(State.App.favoritesMod).map((id) => lookupModule(id)).filter(Boolean);
+
       container.innerHTML = `
-        <div class="page-head"><div><h1>Favoritos</h1><p class="subtitle">Productos marcados para acceso rápido. Se guardan en este navegador.</p></div></div>
+        <div class="page-head"><div><h1>Favoritos</h1><p class="subtitle">Productos y módulos marcados para acceso rápido. Se guardan en este navegador.</p></div></div>
         <div id="fav-output"></div>
       `;
       const out = container.querySelector('#fav-output');
-      if (!favs.length) {
-        out.innerHTML = UI.emptyState('fa-regular fa-star', 'Todavía no tenés favoritos', 'Marcá la estrella ⭐ en cualquier producto para encontrarlo rápido acá.');
+
+      if (!favsProd.length && !favsMod.length) {
+        out.innerHTML = UI.emptyState('fa-regular fa-star', 'Todavía no tenés favoritos', 'Marcá la estrella ⭐ en cualquier producto o módulo para encontrarlo rápido acá.');
         return;
       }
-      out.innerHTML = searchResultHeader() + favs.map(searchResultRow).join('');
+
+      let html = '';
+
+      // --- Sección Productos ---
+      html += `<div class="cat-divider">Productos · ${favsProd.length}</div>`;
+      if (favsProd.length) {
+        html += searchResultHeader() + favsProd.map(searchResultRow).join('');
+      } else {
+        html += `<p class="text-faint" style="font-size:12.5px;margin:4px 0 8px;">Todavía no marcaste productos como favoritos.</p>`;
+      }
+
+      // --- Sección Módulos ---
+      html += `<div class="cat-divider" style="margin-top:20px;">Módulos · ${favsMod.length}</div>`;
+      if (favsMod.length) {
+        html += `<div class="module-list">${favsMod.map(moduleListRowHtml).join('')}</div>`;
+      } else {
+        html += `<p class="text-faint" style="font-size:12.5px;margin:4px 0 8px;">Todavía no marcaste módulos como favoritos.</p>`;
+      }
+
+      out.innerHTML = html;
+
+      // Click en producto -> detalle de producto
       out.querySelectorAll('.search-result-item[data-lab]').forEach((row) => {
         row.addEventListener('click', () => openProductDetail(row.getAttribute('data-lab'), row.getAttribute('data-ean'), row.getAttribute('data-producto')));
+      });
+      // Click en módulo -> detalle de módulo
+      out.querySelectorAll('.module-list-row[data-mod-id]').forEach((row) => {
+        row.addEventListener('click', (e) => {
+          // Si el clic fue sobre la estrella de favorito (o su ícono interno,
+          // que Font Awesome puede convertir en <svg>/<path>), no abrir el detalle.
+          if (e.target.closest('.fav-toggle') || e.target.closest('.mlr-fav')) return;
+          const mod = lookupModule(row.getAttribute('data-mod-id'));
+          if (mod) openModuleDetail(mod);
+        });
       });
     }
     render();
@@ -874,9 +1053,7 @@
           <li><i class="fa-solid fa-tags"></i> <span><b>Descuentos:</b> Descuento Especial, Publicado y Exclusivo vigentes por producto.</span></li>
           <li><i class="fa-solid fa-layer-group"></i> <span><b>Módulos:</b> combos comerciales por laboratorio, con sus productos, cantidades y descuentos.</span></li>
           <li><i class="fa-solid fa-handshake"></i> <span><b>Cuentas Especiales:</b> condiciones negociadas con cuentas puntuales (no aplican a la política general).</span></li>
-          <li><i class="fa-solid fa-circle-minus"></i> <span>La hoja "Detalle Pack" del Excel no está incluida en esta versión.</span></li>
         </ul>
-        <p style="margin-top:18px;">Para actualizar la información el mes próximo, alcanza con reemplazar el archivo Excel — ver <code>README.md</code> en la carpeta del proyecto.</p>
         <p class="text-faint" style="font-size:12px;">Fuente cargada: <span id="acerca-fuente">—</span></p>
       </div>
     `;
@@ -957,13 +1134,14 @@
       else if (item.key === 'modulos') count = m.labs.reduce((a, l) => a + (m.modulosPorLab[l] || []).length, 0);
       else if (item.key === 'laboratorios') count = m.labs.length;
       else if (item.key === 'cuentas') count = new Set(m.cuentasEspeciales.map((c) => c.cliente)).size;
-      else if (item.key === 'favoritos') count = State.App.favorites.size || '';
+      else if (item.key === 'favoritos') count = (State.App.favorites.size + State.App.favoritesMod.size) || '';
       return `<div class="nav-item" data-page="${item.key}"><i class="${item.icon}"></i>${item.label}${count !== '' ? `<span class="count">${count}</span>` : ''}</div>`;
     }).join('');
     nav.querySelectorAll('.nav-item').forEach((el) => el.addEventListener('click', () => go(el.getAttribute('data-page'), {})));
     document.addEventListener('pf:favorites-changed', () => {
       const favItem = nav.querySelector('[data-page="favoritos"] .count');
-      if (favItem) favItem.textContent = State.App.favorites.size; else renderSidebar();
+      const total = State.App.favorites.size + State.App.favoritesMod.size;
+      if (favItem) favItem.textContent = total; else renderSidebar();
     });
   }
 

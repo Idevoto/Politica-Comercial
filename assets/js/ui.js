@@ -82,21 +82,39 @@
       + `data-fav-lab="${escapeHtml(lab)}" data-fav-ean="${escapeHtml(ean || '')}" title="Favorito"></i>`;
   }
 
-  // Delegación global para favoritos (un solo listener para toda la app)
+  // Estrella de favorito para un módulo (identificado por su id único).
+  function favToggleModHtml(modId, sizeClass) {
+    const isFav = State.isFavoriteMod(modId);
+    return `<i class="${isFav ? 'fa-solid' : 'fa-regular'} fa-star fav-toggle fav-toggle-mod ${isFav ? 'is-fav' : ''} ${sizeClass || ''}" `
+      + `data-fav-mod="${escapeHtml(modId)}" title="Favorito"></i>`;
+  }
+
+  // Delegación global para favoritos (un solo listener para toda la app).
+  // Se registra en fase de CAPTURA para poder frenar el clic antes de que llegue
+  // al contenedor (tarjeta/fila/modal), y así tocar la estrella nunca dispara la
+  // apertura del detalle en ninguna parte de la app.
   function initFavoriteDelegation() {
     document.addEventListener('click', function (e) {
       const t = e.target.closest('.fav-toggle');
       if (!t) return;
       e.stopPropagation();
-      const lab = t.getAttribute('data-fav-lab');
-      const ean = t.getAttribute('data-fav-ean');
-      const isFav = State.toggleFavorite(lab, ean);
+      e.preventDefault();
+      let isFav;
+      if (t.hasAttribute('data-fav-mod')) {
+        // Favorito de módulo
+        isFav = State.toggleFavoriteMod(t.getAttribute('data-fav-mod'));
+      } else {
+        // Favorito de producto
+        const lab = t.getAttribute('data-fav-lab');
+        const ean = t.getAttribute('data-fav-ean');
+        isFav = State.toggleFavorite(lab, ean);
+      }
       t.classList.toggle('is-fav', isFav);
       t.classList.toggle('fa-solid', isFav);
       t.classList.toggle('fa-regular', !isFav);
       toast(isFav ? 'Agregado a favoritos' : 'Quitado de favoritos');
       document.dispatchEvent(new CustomEvent('pf:favorites-changed'));
-    });
+    }, true); // <- true = fase de captura
   }
 
   // ---------- Modal genérico (Bootstrap) ----------
@@ -125,7 +143,7 @@
   const UI = {
     escapeHtml, fmtPctDirect, fmtPctFraction,
     dchip, discountOrDash, labPill, labLogo, obsPill,
-    emptyState, toast, favToggleHtml, initFavoriteDelegation, showModal,
+    emptyState, toast, favToggleHtml, favToggleModHtml, initFavoriteDelegation, showModal,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = UI;

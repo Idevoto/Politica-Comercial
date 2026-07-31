@@ -231,25 +231,55 @@
     return set;
   }
 
-  // ---------- 5) Mes vigente (celda I1 de "Grupo Roemmers") ----------
+  // ---------- 5) Mes vigente (fila 1 de "Grupo Roemmers") ----------
 
-  // Columna I = índice 8 (A=0, B=1 ... I=8). Fila 1 = índice 0.
+  // Antes se leía de una celda fija (I1). Ahora se busca en toda la fila 1 la
+  // celda que tenga forma de "Mes-Año" (texto tipo "Agosto-2026" / "Agosto 2026")
+  // o una fecha serial de Excel. Así, si en el Excel se agregan/mueven columnas,
+  // el mes se sigue detectando sin depender de la posición.
   function parseMesLabel(rows) {
     const row = rows && rows[0];
     if (!row) return null;
-    const raw = row[8];
-    if (raw === null || raw === undefined || raw === '') return null;
-    // Si el Excel guardó la celda como fecha (serial numérico) en vez de texto,
-    // la convertimos a un texto "Mes AAAA" en español.
-    if (typeof raw === 'number' && typeof XLSX !== 'undefined' && XLSX.SSF) {
-      const parsed = XLSX.SSF.parse_date_code(raw);
-      if (parsed) {
-        const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-        const nombre = meses[parsed.m - 1];
-        if (nombre) return nombre.charAt(0).toUpperCase() + nombre.slice(1) + ' ' + parsed.y;
+
+    const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+    // Convierte una fecha serial de Excel a "Mes AAAA".
+    function fromSerial(raw) {
+      if (typeof raw === 'number' && typeof XLSX !== 'undefined' && XLSX.SSF) {
+        const parsed = XLSX.SSF.parse_date_code(raw);
+        if (parsed && parsed.m >= 1 && parsed.m <= 12) {
+          const nombre = meses[parsed.m - 1];
+          if (nombre) return nombre.charAt(0).toUpperCase() + nombre.slice(1) + ' ' + parsed.y;
+        }
+      }
+      return null;
+    }
+
+    // ¿El texto tiene forma de mes+año? (p.ej. "Agosto-2026", "Agosto 2026", "AGOSTO/26")
+    function looksLikeMonth(txt) {
+      const t = norm(txt); // MAYÚSCULAS, sin acentos
+      const mesesUp = meses.map((mm) => norm(mm));
+      return mesesUp.some((mm) => t.indexOf(mm) !== -1) && /\d{2,4}/.test(t);
+    }
+
+    // Recorremos la fila 1 de derecha a izquierda: el mes suele estar a la
+    // derecha, y así evitamos confundirlo con el título largo (que está en B1).
+    for (let c = row.length - 1; c >= 0; c--) {
+      const raw = row[c];
+      if (raw === null || raw === undefined || raw === '') continue;
+
+      // 1) Fecha serial
+      const serial = fromSerial(raw);
+      if (serial) return serial;
+
+      // 2) Texto con forma de mes+año (y que no sea el título largo de la política)
+      if (typeof raw === 'string') {
+        const s = raw.trim();
+        // Evitamos el título ("POLITICA COMERCIAL ... AGOSTO 26"): es una frase larga.
+        if (s.length <= 20 && looksLikeMonth(s)) return s;
       }
     }
-    return String(raw).trim() || null;
+    return null;
   }
 
   // ---------- Orquestador ----------

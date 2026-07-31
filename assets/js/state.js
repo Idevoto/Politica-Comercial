@@ -32,6 +32,7 @@
   // ---------- localStorage keys ----------
   const LS_THEME = 'pf_theme';
   const LS_FAVORITES = 'pf_favoritos_v1';
+  const LS_FAVORITES_MOD = 'pf_favoritos_mod_v1';
   const LS_DATA_CACHE = 'pf_data_cache_v1';
   const LS_DATA_META = 'pf_data_meta_v1';
   const LS_MODULOS_VIEW = 'pf_modulos_view';
@@ -116,6 +117,28 @@
     return App.favorites.has(key);
   }
 
+  // ---------- Favoritos de módulos (guardados aparte de los productos) ----------
+  function getFavoritesMod() {
+    try {
+      const raw = safeGet(LS_FAVORITES_MOD);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch (e) { return new Set(); }
+  }
+  function saveFavoritesMod(set) {
+    safeSet(LS_FAVORITES_MOD, JSON.stringify(Array.from(set)));
+  }
+  // Un módulo se identifica por su id único (p.ej. "Sidus-3").
+  function isFavoriteMod(modId) {
+    return App.favoritesMod.has(String(modId));
+  }
+  function toggleFavoriteMod(modId) {
+    const key = String(modId);
+    if (App.favoritesMod.has(key)) App.favoritesMod.delete(key);
+    else App.favoritesMod.add(key);
+    saveFavoritesMod(App.favoritesMod);
+    return App.favoritesMod.has(key);
+  }
+
   // ---------- Cache de datos (para cuando falla el auto-fetch) ----------
   function cacheData(model, meta) {
     try {
@@ -143,6 +166,7 @@
   const App = {
     model: null,        // resultado de ExcelParser.buildModel
     favorites: getFavorites(),
+    favoritesMod: getFavoritesMod(),
     route: { page: 'inicio', params: {} },
     dataMeta: null,      // {source: 'fetch'|'manual'|'cache', fileName, loadedAt}
     excelBuffer: null,   // ArrayBuffer del Excel tal como se cargó, para poder exportarlo tal cual
@@ -155,6 +179,7 @@
     getTheme, setTheme, toggleTheme,
     getModulosView, setModulosView,
     isFavorite, toggleFavorite, favKey,
+    isFavoriteMod, toggleFavoriteMod,
     cacheData, getCachedData, clearCache,
     downloadCurrentExcel,
   };
