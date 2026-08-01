@@ -410,7 +410,6 @@ button { font-family: inherit; }
 .module-card .mc-prod-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .module-card .mc-products .more { color: var(--text-faint); font-style: italic; }
 .module-card .mc-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 1px; }
-.module-card .mc-foot-right { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .module-card .mc-qty { font-size: 11px; color: var(--text-faint); }
 .module-card .mc-qty b { font-family: var(--font-mono); color: var(--text-muted); }
 .mc-mobile { display: none; }
@@ -433,8 +432,6 @@ button { font-family: inherit; }
 }
 .module-list-row:last-child { border-bottom: none; }
 .module-list-row:hover { background: var(--surface-2); }
-.module-list-row .mlr-fav { flex-shrink: 0; display: flex; align-items: center; }
-.module-list-row .mlr-lab { flex-shrink: 0; width: 84px; display: flex; }
 .module-list-row .mlr-main { flex: 1; min-width: 0; }
 .module-list-row .mlr-name { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .module-list-row .mlr-meta { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--text-faint); margin-top: 1px; }
@@ -459,11 +456,6 @@ table.styled-table thead th {
 table.styled-table tbody td { padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 table.styled-table tbody tr { transition: background .1s; }
 table.styled-table tbody tr:hover { background: var(--surface-2); }
-
-/* Columnas de descuento (Exclusivo/Publicado/Especial/Módulos): encabezado y
-   chip centrados, para que el valor quede alineado debajo de su título. */
-#tbl-descuentos thead th.td-desc { text-align: center; }
-#tbl-descuentos tbody td.td-desc { text-align: center; }
 table.styled-table tbody tr:last-child td { border-bottom: none; }
 .fav-toggle { cursor: pointer; color: var(--text-faint); font-size: 14px; transition: color .12s, transform .12s; }
 .fav-toggle:hover { transform: scale(1.15); }
@@ -584,7 +576,6 @@ html, body { overflow-x: hidden; }
   .hero-stats { gap: 16px; }
   .page-head { align-items: flex-start; }
   .module-list-row { flex-wrap: wrap; row-gap: 8px; }
-  .module-list-row .mlr-lab { width: auto; order: -1; }
   .module-list-row .mlr-main { flex-basis: 100%; }
   .view-toggle-btn span { display: none; }
   .view-toggle-btn { padding: 0 12px; }
@@ -613,7 +604,12 @@ html, body { overflow-x: hidden; }
   table.styled-table { font-size: 10.5px; }
   table.styled-table thead th, table.styled-table tbody td { padding: 6px 3px; }
   table.styled-table thead th { font-size: 8px; }
-  #tbl-descuentos tbody td.td-producto { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; line-height: 1.35; }
+  #tbl-descuentos tbody td.td-producto { white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; max-width: 0; }
+  /* Columna de la estrella (favorito) bien angosta y pegada al producto */
+  #tbl-descuentos thead th:nth-child(1), #tbl-descuentos tbody td:nth-child(1) {
+    width: 16px !important; padding-left: 2px !important; padding-right: 1px !important;
+  }
+  #tbl-descuentos tbody td.td-producto { padding-left: 2px !important; }
   .fav-toggle { font-size: 12px; }
   .mobile-only-chip { display: inline-flex; }
   table.styled-table .dchip.sm { font-size: 10.5px; padding: 2px 6px 2px 11px; }
@@ -637,7 +633,7 @@ html, body { overflow-x: hidden; }
   .mc-mobile { display: block; }
   .mcm-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
   .mcm-title { font-weight: 700; font-size: 12.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .mcm-lab { font-size: 10.5px; color: var(--text-faint); flex-shrink: 0; overflow-wrap: anywhere; max-width: 45%; text-align: right; display: inline-flex; align-items: center; gap: 6px; }
+  .mcm-lab { font-size: 10.5px; color: var(--text-faint); flex-shrink: 0; overflow-wrap: anywhere; max-width: 40%; text-align: right; }
   .mcm-meta { display: flex; gap: 10px; font-size: 10px; color: var(--text-faint); margin-top: 2px; flex-wrap: wrap; overflow-wrap: anywhere; }
   .mcm-meta b { font-family: var(--font-mono); color: var(--text-muted); }
   .mcm-obs { font-size: 9.5px; font-weight: 700; color: #B45309; background: var(--warn-soft); padding: 2px 8px; border-radius: 4px; display: inline-block; margin-top: 5px; }
@@ -657,47 +653,16 @@ html, body { overflow-x: hidden; }
 
 /* ---------- Print ---------- */
 @media print {
-  #sidebar, #topbar, .page-actions, .filter-bar, .fav-toggle, #toast, .dataTables_filter, .dataTables_length, .dataTables_paginate, .dataTables_info { display: none !important; }
+  #sidebar, #topbar, .page-actions, .filter-bar, .fav-toggle, #toast, .dataTables_filter, .dataTables_length, .dataTables_paginate { display: none !important; }
   #main { margin-left: 0 !important; }
   body { background: #fff; }
   .module-card, .lab-card, .table-card { box-shadow: none !important; border: 1px solid #ccc !important; }
-
-  /* --- Tabla de Descuentos en impresión ---
-     La tabla se remonta con las mismas columnas que se ven en pantalla (según el
-     laboratorio: Especial solo en Todos/Roemmers/Siegfried), pero sin la de
-     favorito. Producto ancho a la izquierda; el resto centradas. */
-  .table-card { overflow: visible !important; }
-  #tbl-descuentos { width: 100% !important; table-layout: auto; font-size: 11px !important; }
-  #tbl-descuentos thead th, #tbl-descuentos tbody td {
-    white-space: normal !important; overflow: visible !important; text-overflow: clip !important;
-    vertical-align: top; padding: 6px 10px !important;
-  }
-  /* Que ninguna fila se parta entre páginas y el encabezado se repita arriba */
-  #tbl-descuentos thead { display: table-header-group; }
-  #tbl-descuentos tbody tr { break-inside: avoid; page-break-inside: avoid; }
-
-  /* Producto ocupa el espacio disponible; las columnas de descuento angostas y centradas */
-  #tbl-descuentos thead th.td-producto, #tbl-descuentos tbody td.td-producto {
-    width: 100%; text-align: left !important;
-  }
-  #tbl-descuentos thead th.td-desc, #tbl-descuentos tbody td.td-desc {
-    width: 80px; text-align: center !important; white-space: nowrap !important;
-  }
 }
 
 /* ---------- Impresión de Módulos como tarjetas de detalle ---------- */
 #print-modulos-area { display: none; }
-/* Layout en 2 columnas con multicol: a diferencia de grid, respeta de forma
-   confiable el "break-inside: avoid" de cada tarjeta, así ninguna se corta al
-   final de la hoja. Las tarjetas fluyen llenando la columna izquierda y luego
-   la derecha. */
-.print-mod-grid { column-count: 2; column-gap: 10px; }
-.print-mod-card {
-  border: 1px solid #bbb; border-top: 3px solid #999; border-radius: 6px;
-  padding: 8px 10px; margin-bottom: 10px;
-  break-inside: avoid; page-break-inside: avoid; -webkit-column-break-inside: avoid;
-  display: inline-block; width: 100%;
-}
+.print-mod-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.print-mod-card { border: 1px solid #bbb; border-top: 3px solid #999; border-radius: 6px; padding: 8px 10px; break-inside: avoid; page-break-inside: avoid; }
 .print-mod-card .pmc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
 .print-mod-card .pmc-title { font-weight: 700; font-size: 12.5px; line-height: 1.25; color: #111; }
 .print-mod-card .pmc-badge { font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
@@ -712,25 +677,6 @@ html, body { overflow-x: hidden; }
 .print-mod-card table.pmc-table th:last-child, .print-mod-card table.pmc-table th:nth-last-child(2) { text-align: right; }
 .print-mod-card table.pmc-table td { padding: 2px 4px; border-bottom: 1px solid #eee; color: #222; }
 .print-mod-card table.pmc-table td.pc-num { text-align: right; white-space: nowrap; color: #444; }
-
-/* ---------- Impresión de Módulos como lista (una línea por módulo) ---------- */
-.print-mod-list { display: block; }
-.print-mod-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 14px;
-  border: 1px solid #ddd; border-left: 3px solid #999; border-radius: 5px;
-  padding: 6px 10px; margin-bottom: 5px;
-  break-inside: avoid; page-break-inside: avoid; -webkit-column-break-inside: avoid;
-}
-.print-mod-row .pmr-main { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex: 1; flex-wrap: wrap; }
-.print-mod-row .pmr-name { font-weight: 700; font-size: 11px; color: #111; }
-.print-mod-row .pmr-code { font-size: 9px; color: #666; font-family: var(--font-mono); }
-.print-mod-row .pmr-prods { font-size: 9px; color: #666; }
-.print-mod-row .pmr-obs { font-size: 8.5px; font-weight: 600; color: #92400e; background: #fef3e2; padding: 1px 6px; border-radius: 4px; }
-.print-mod-row .pmr-cols { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-.print-mod-row .pmr-lab { flex-shrink: 0; width: 74px; font-size: 8.5px; font-weight: 700; padding: 2px 8px; border-radius: 10px; white-space: nowrap; text-align: center; }
-.print-mod-row .pmr-unid { font-size: 9.5px; color: #444; white-space: nowrap; }
-.print-mod-row .pmr-unid b { color: #111; font-family: var(--font-mono); }
-.print-mod-row .pmr-desc { font-size: 11px; font-weight: 700; color: #0d9488; font-family: var(--font-mono); white-space: nowrap; min-width: 42px; text-align: right; }
 
 @media print {
   body.printing-modulos #modulos-output,
