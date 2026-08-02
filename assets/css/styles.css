@@ -611,6 +611,22 @@ html, body { overflow-x: hidden; }
   }
   #tbl-descuentos tbody td.td-producto { padding-left: 2px !important; }
   .fav-toggle { font-size: 12px; }
+
+  /* ---- Layout "Desc. Especial" (2 columnas): el descuento va fijo a la derecha
+     y el producto ocupa el resto con puntos suspensivos, para que nunca se
+     superpongan. ---- */
+  #tbl-descuentos.mode-desc-especial { table-layout: fixed; width: 100%; }
+  #tbl-descuentos.mode-desc-especial thead th:nth-child(1),
+  #tbl-descuentos.mode-desc-especial tbody td:nth-child(1) {
+    width: auto !important; max-width: 0; text-align: left;
+    white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
+    padding-right: 8px !important;
+  }
+  #tbl-descuentos.mode-desc-especial thead th:nth-child(2),
+  #tbl-descuentos.mode-desc-especial tbody td:nth-child(2) {
+    width: 70px !important; text-align: right !important; white-space: nowrap !important;
+    padding-left: 4px !important; padding-right: 4px !important;
+  }
   .mobile-only-chip { display: inline-flex; }
   table.styled-table .dchip.sm { font-size: 10.5px; padding: 2px 6px 2px 11px; }
   table.styled-table .dchip.sm::before { width: 4px; height: 4px; left: 3.5px; }
@@ -684,6 +700,12 @@ html, body { overflow-x: hidden; }
 
   /* Detalle de módulo (modal): que ninguna línea de producto se corte */
   .module-line { break-inside: avoid !important; page-break-inside: avoid !important; }
+
+  /* Columna de descuento: que el chip no se salga del recuadro de la celda */
+  table.styled-table td.td-desc, table.dataTable td.td-desc {
+    white-space: nowrap; overflow: visible; text-align: center;
+  }
+  table.styled-table td.td-desc .dchip, table.dataTable td.td-desc .dchip { max-width: 100%; }
 }
 
 /* ---------- Impresión de Módulos como tarjetas de detalle ---------- */
@@ -739,6 +761,41 @@ html, body { overflow-x: hidden; }
     page-break-inside: avoid !important;
     -webkit-column-break-inside: avoid !important;
   }
+}
+
+/* ---------- Impresión de Cuentas Especiales (tabla estática, sin scrollY) ---------- */
+#print-cuentas-area { display: none; }
+@media print {
+  body.printing-cuentas .table-card { display: none !important; }
+  body.printing-cuentas #print-cuentas-area { display: block !important; }
+  .print-cuentas-table { width: 100%; border-collapse: collapse; }
+  .print-cuentas-table th {
+    text-align: left; font-size: 10px; text-transform: uppercase; color: #444;
+    border-bottom: 1px solid #999; padding: 5px 6px;
+  }
+  .print-cuentas-table th:last-child { text-align: center; }
+  .print-cuentas-table td { padding: 4px 6px; border-bottom: 1px solid #e2e2e2; font-size: 11px; }
+  .print-cuentas-table td.td-desc { text-align: center; white-space: nowrap; }
+  .print-cuentas-table tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+  .print-cuentas-table thead { display: table-header-group; }
+}
+
+/* ---------- Impresión de Descuentos individuales (tabla estática, sin scrollY) ---------- */
+#print-descuentos-area { display: none; }
+@media print {
+  body.printing-descuentos .table-card { display: none !important; }
+  body.printing-descuentos #print-descuentos-area { display: block !important; }
+  .print-desc-table { width: 100%; border-collapse: collapse; }
+  .print-desc-table th {
+    text-align: left; font-size: 10px; text-transform: uppercase; color: #444;
+    border-bottom: 1px solid #999; padding: 5px 6px;
+  }
+  .print-desc-table td { padding: 4px 6px; border-bottom: 1px solid #e2e2e2; font-size: 11px; }
+  .print-desc-table td.td-producto { font-weight: 600; }
+  .print-desc-table td.td-desc { text-align: center; white-space: nowrap; }
+  .print-desc-table th:not(:first-child):not(:nth-child(2)) { text-align: center; }
+  .print-desc-table tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+  .print-desc-table thead { display: table-header-group; }
 }
 body.printing-modal #app,
 body.printing-modal #loading-screen,

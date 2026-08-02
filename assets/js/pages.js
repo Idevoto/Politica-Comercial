@@ -285,6 +285,7 @@
             <tbody></tbody>
           </table>
       </div>
+      <div id="print-descuentos-area"></div>
     `;
 
     let printMode = false; // se activa solo mientras se imprime
@@ -389,6 +390,9 @@
       document.getElementById('tbl-descuentos').innerHTML = '<tbody></tbody>';
       const mobile = isMobileView();
       const conEspecial = showsEspecial(lab);
+      // Clase para que el CSS mobile del layout "Desc. Especial" (2 columnas) pueda
+      // fijar el ancho del descuento a la derecha y que no se superponga al producto.
+      document.getElementById('tbl-descuentos').classList.toggle('mode-desc-especial', !!(mobile && descEspecialOnly));
       let columns, orderIdx;
 
       const colExcl = { title: '<span class="th-full">Exclusivo</span><span class="th-short">Excl.</span>', width: '76px', className: 'td-desc', render: renderDesc, type: 'num' };
@@ -533,43 +537,41 @@
       const activeChip = container.querySelector('#desc-filters .chip[data-lab].active');
       const activeLabNow = activeChip ? activeChip.getAttribute('data-lab') : 'todos';
       const mobile = isMobileView();
+      const conEspecial = showsEspecial(activeLabNow);
 
-      // Capturamos el estado actual (orden + texto de búsqueda) para conservarlo
-      // en la impresión, tal como el usuario lo dejó en pantalla.
-      const curOrder = dtDescuentos ? dtDescuentos.order() : null;   // p.ej. [[3,'desc']]
-      const curSearch = dtDescuentos ? dtDescuentos.search() : '';
+      // En vez de remontar la DataTable (lo que producía el "parpadeo" de encabezados
+      // y era lento), armamos una tabla estática con las filas visibles actuales,
+      // respetando filtro y orden. Sacamos las columnas de Favorito y Módulos.
+      const dispDesc = (cell) => (cell && typeof cell === 'object') ? cell.display : (cell != null ? cell : '');
+      const rows = dtDescuentos.rows({ search: 'applied', order: 'applied' }).data().toArray();
 
-      // Al pasar al layout de impresión se quita la columna de Favorito (que en
-      // pantalla es la primera), así que TODOS los índices de columna se corren 1
-      // a la izquierda. En el layout "Desc. Especial" mobile (2 columnas, sin Fav)
-      // no hay corrimiento. Traducimos el índice de la columna ordenada.
-      const hadFavColumn = !(mobile && descEspecialOnly); // ese layout no tiene Fav
-      const printOrder = (curOrder && curOrder.length)
-        ? curOrder.map(([idx, dir]) => [hadFavColumn ? Math.max(0, idx - 1) : idx, dir])
-        : null;
+      // Índices de columna según el layout de pantalla vigente:
+      //  - mobile Desc.Especial: [producto, especial]
+      //  - mobile normal:        [fav, producto, excl, publ, mod]
+      //  - desktop normal:       [fav, lab, producto, excl, publ, (esp), mod]
+      let headHtml, bodyHtml;
+      if (mobile && descEspecialOnly) {
+        headHtml = '<th>Producto</th><th>Desc. Esp.</th>';
+        bodyHtml = rows.map((r) => `<tr><td class="td-producto">${r[0]}</td><td class="td-desc">${dispDesc(r[1])}</td></tr>`).join('');
+      } else if (mobile) {
+        headHtml = '<th>Producto</th><th>Excl.</th><th>Publ.</th>';
+        bodyHtml = rows.map((r) => `<tr><td class="td-producto">${r[1]}</td><td class="td-desc">${dispDesc(r[2])}</td><td class="td-desc">${dispDesc(r[3])}</td></tr>`).join('');
+      } else {
+        headHtml = `<th>Laboratorio</th><th>Producto</th><th>Excl.</th><th>Publ.</th>${conEspecial ? '<th>Desc. Esp.</th>' : ''}`;
+        bodyHtml = rows.map((r) => {
+          const espCell = conEspecial ? `<td class="td-desc">${dispDesc(r[5])}</td>` : '';
+          return `<tr><td>${r[1]}</td><td class="td-producto">${r[2]}</td><td class="td-desc">${dispDesc(r[3])}</td><td class="td-desc">${dispDesc(r[4])}</td>${espCell}</tr>`;
+        }).join('');
+      }
 
-      printMode = true;
-      mountTable(activeLabNow, { order: printOrder, search: curSearch });
-      if (dtDescuentos) dtDescuentos.page.len(-1).draw(false);
-
-      const restore = () => {
-        printMode = false;
-        // Al volver al layout de pantalla, re-sumamos 1 al índice para deshacer la
-        // traducción y recuperar exactamente el orden/búsqueda que había.
-        const backOrder = (printOrder && printOrder.length)
-          ? printOrder.map(([idx, dir]) => [hadFavColumn ? idx + 1 : idx, dir])
-          : null;
-        mountTable(activeLabNow, { order: backOrder, search: curSearch });
-        window.removeEventListener('afterprint', restore);
-      };
-      window.addEventListener('afterprint', restore);
-
-      // Pequeño respiro para que DataTables termine de redibujar antes de imprimir.
-      setTimeout(() => {
-        window.print();
-        // Respaldo por si el navegador no dispara 'afterprint'.
-        setTimeout(() => { if (printMode) restore(); }, 800);
-      }, 200);
+      const printArea = container.querySelector('#print-descuentos-area');
+      printArea.innerHTML = `<table class="styled-table print-desc-table">
+        <thead><tr>${headHtml}</tr></thead>
+        <tbody>${bodyHtml}</tbody>
+      </table>`;
+      document.body.classList.add('printing-descuentos');
+      window.print();
+      setTimeout(() => document.body.classList.remove('printing-descuentos'), 300);
     });
     container.querySelector('#btn-export-excel-descuentos').addEventListener('click', () => State.downloadCurrentExcel());
   }
@@ -1013,6 +1015,7 @@
           <tbody></tbody>
         </table>
       </div>
+      <div id="print-cuentas-area"></div>
     `;
 
     function mount() {
@@ -1024,13 +1027,13 @@
           UI.labPill(c.lab, 'sm'),
           `<span title="${UI.escapeHtml(c.cliente)}">${UI.escapeHtml(c.cliente)}</span>`,
           `<span title="${UI.escapeHtml(c.producto)}">${UI.escapeHtml(c.producto)}</span>`,
-          UI.discountOrDash(c.descuento, UI.fmtPctDirect),
+          UI.discountOrDash(c.descuento, UI.fmtPctDirect, { sm: true }),
         ]),
         columns: [
           { title: 'Laboratorio', width: '95px' },
           { title: 'Cuenta', width: '22%' },
           { title: 'Producto' },
-          { title: 'Descuento', width: '80px' },
+          { title: 'Desc.', width: '64px', className: 'td-desc' },
         ],
         autoWidth: false,
         pageLength: mobile ? 15 : 25,
@@ -1064,7 +1067,26 @@
     sel.addEventListener('change', () => { if (sel.value) buscar.value = ''; applyFilter(); });
     buscar.addEventListener('input', () => { if (buscar.value) sel.value = ''; applyFilter(); });
     labSel.addEventListener('change', applyFilter);
-    container.querySelector('#btn-print-cuentas').addEventListener('click', () => window.print());
+    container.querySelector('#btn-print-cuentas').addEventListener('click', () => {
+      // En vez de remontar la DataTable (lento y frágil por scrollY + idioma async),
+      // armamos una tabla estática con las filas actualmente visibles (respeta el
+      // filtro y el orden que el usuario tiene puesto). Es instantáneo y se alinea bien.
+      const printArea = container.querySelector('#print-cuentas-area');
+      const rows = dtCuentas.rows({ search: 'applied', order: 'applied' }).data().toArray();
+      const bodyHtml = rows.map((r) => `<tr>
+        <td>${r[0]}</td>
+        <td>${r[1]}</td>
+        <td>${r[2]}</td>
+        <td class="td-desc">${r[3]}</td>
+      </tr>`).join('');
+      printArea.innerHTML = `<table class="styled-table print-cuentas-table">
+        <thead><tr><th>Laboratorio</th><th>Cuenta</th><th>Producto</th><th>Desc.</th></tr></thead>
+        <tbody>${bodyHtml}</tbody>
+      </table>`;
+      document.body.classList.add('printing-cuentas');
+      window.print();
+      setTimeout(() => document.body.classList.remove('printing-cuentas'), 300);
+    });
   }
 
   // ======================================================================
