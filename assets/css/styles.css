@@ -181,11 +181,14 @@ button { font-family: inherit; }
   padding: 20px 20px 16px;
 }
 .sidebar-brand .mark {
-  width: 32px; height: 32px; border-radius: 9px;
+  width: 56px; height: 56px; border-radius: 14px;
   background: var(--brand); color: #fff;
   display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 14px; flex-shrink: 0;
+  font-weight: 700; font-size: 22px; flex-shrink: 0;
+  overflow: hidden;
 }
+/* Si el logo es una imagen, que ocupe todo el cuadrado y no se vea el fondo violeta detrás */
+.sidebar-brand .mark:has(img) { background: transparent; }
 .sidebar-brand .label { font-weight: 700; font-size: 14.5px; line-height: 1.2; }
 .sidebar-brand .label small { display: block; font-weight: 500; color: var(--text-faint); font-size: 11px; }
 

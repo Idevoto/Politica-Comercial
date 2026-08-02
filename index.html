@@ -14,8 +14,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
 
-  <link rel="stylesheet" href="assets/css/styles.css?v=41">
-  <link rel="icon" href="assets/logos/division-farmacias.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/styles.css?v=44">
+  <link rel="icon" href="assets/logos/division-farmacias.png" type="image/png">
 </head>
 <body>
 
@@ -30,8 +30,8 @@
   <!-- ===================== FILE LOADER (fallback manual) ===================== -->
   <div id="file-loader-screen" hidden>
     <div class="loader-card">
-      <img class="brand-mark" src="assets/logos/division-farmacias.svg" alt="División Farmacias"
-           onerror="this.replaceWith(Object.assign(document.createElement('div'),{innerHTML:'<i class=\'fa-solid fa-prescription-bottle-medical\' style=\'font-size:30px;color:var(--brand)\'></i>',style:'margin-bottom:18px'}))">
+      <img class="brand-mark" src="assets/logos/division-farmacias.png" alt="División Farmacias"
+           onerror="if(!this.dataset.triedAlt){this.dataset.triedAlt=1;this.src='assets/logos/division-farmacias.svg';}else{this.replaceWith(Object.assign(document.createElement('div'),{innerHTML:'<i class=\'fa-solid fa-prescription-bottle-medical\' style=\'font-size:30px;color:var(--brand)\'></i>',style:'margin-bottom:18px'}))}">
       <h2 id="loader-title">Cargá el archivo Excel</h2>
       <p id="loader-sub">Seleccioná el Excel de política comercial para empezar.</p>
       <div id="loader-banner" class="loader-error" hidden style="color:var(--text-muted);"></div>
@@ -49,7 +49,7 @@
     <div id="sidebar-backdrop"></div>
     <aside id="sidebar">
       <div class="sidebar-brand">
-        <div class="mark">DF</div>
+        <div class="mark"><img src="assets/logos/division-farmacias.png" alt="DF" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;" onerror="if(!this.dataset.triedAlt){this.dataset.triedAlt=1;this.src='assets/logos/division-farmacias.svg';}else{this.replaceWith(document.createTextNode('DF'));}"></div>
         <div class="label">División Farmacias<small>Política Comercial</small></div>
       </div>
       <nav class="nav-section" id="nav-section"></nav>
@@ -83,10 +83,10 @@
   <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-  <script src="assets/js/excelParser.js?v=41"></script>
-  <script src="assets/js/state.js?v=41"></script>
-  <script src="assets/js/ui.js?v=41"></script>
-  <script src="assets/js/pages.js?v=41"></script>
-  <script src="assets/js/app.js?v=41"></script>
+  <script src="assets/js/excelParser.js?v=44"></script>
+  <script src="assets/js/state.js?v=44"></script>
+  <script src="assets/js/ui.js?v=44"></script>
+  <script src="assets/js/pages.js?v=44"></script>
+  <script src="assets/js/app.js?v=44"></script>
 </body>
 </html>
