@@ -466,6 +466,22 @@
       });
     }
 
+    // Remonta la tabla (cambio de lab / packs / desc. especial) SIN que la página
+    // salte hasta arriba. Guardamos la posición de scroll actual y la restauramos
+    // tras remontar. Contemplamos tanto el scroll de la ventana como el del
+    // contenedor #main (según cuál sea el que efectivamente scrollea en este layout).
+    function mountTableKeepScroll(lab) {
+      const mainEl = document.getElementById('main');
+      const winY = window.scrollY || window.pageYOffset || 0;
+      const mainY = mainEl ? mainEl.scrollTop : 0;
+      mountTable(lab);
+      // Restauramos en el próximo frame, cuando el DOM ya se redibujó.
+      requestAnimationFrame(() => {
+        window.scrollTo(0, winY);
+        if (mainEl) mainEl.scrollTop = mainY;
+      });
+    }
+
     mountTable(activeLab);
 
     let wasMobile = isMobileView();
@@ -511,7 +527,7 @@
             btnDescEspecial.classList.remove('active');
           }
         }
-        mountTable(lab);
+        mountTableKeepScroll(lab);
       });
     });
 
@@ -520,7 +536,7 @@
         packsOnly = !packsOnly;
         btnPacks.classList.toggle('active', packsOnly);
         const activeChip = container.querySelector('#desc-filters .chip[data-lab].active');
-        mountTable(activeChip ? activeChip.getAttribute('data-lab') : 'todos');
+        mountTableKeepScroll(activeChip ? activeChip.getAttribute('data-lab') : 'todos');
       });
     }
 
@@ -529,7 +545,7 @@
         descEspecialOnly = !descEspecialOnly;
         btnDescEspecial.classList.toggle('active', descEspecialOnly);
         const activeChip = container.querySelector('#desc-filters .chip[data-lab].active');
-        mountTable(activeChip ? activeChip.getAttribute('data-lab') : 'todos');
+        mountTableKeepScroll(activeChip ? activeChip.getAttribute('data-lab') : 'todos');
       });
     }
 
