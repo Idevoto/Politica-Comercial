@@ -293,6 +293,37 @@
     // La columna "Especial" solo aplica a Roemmers y Siegfried (y a "Todos", que los incluye).
     function showsEspecial(lab) { return labShowsPacks(lab); }
 
+    // --- Ordenamiento numérico de las columnas de descuento ---
+    // Los descuentos vienen con signo negativo (-15 = 15% de descuento). Para que
+    // ordenar por Exclusivo/Publicado/Especial vaya "de mayor a menor descuento",
+    // usamos la MAGNITUD (valor absoluto) como clave de orden. Los vacíos (—) van
+    // al final. Cada celda se pasa como objeto { display, sort }: DataTables
+    // muestra `display` (el chip) y ordena por `sort` (el número).
+    function descCell(value, opts) {
+      const magnitud = (value === null || value === undefined) ? -1 : Math.abs(value);
+      return { display: UI.discountOrDash(value, UI.fmtPctDirect, opts), sort: magnitud };
+    }
+    // Render que entiende tanto el objeto {display, sort} como un string suelto.
+    function renderDesc(data, type) {
+      if (data && typeof data === 'object') {
+        if (type === 'sort' || type === 'type') return data.sort;
+        if (type === 'filter') return String(data.display || '').replace(/<[^>]*>/g, '');
+        return data.display;
+      }
+      return data;
+    }
+    // La celda de Producto es HTML (<span ...>NOMBRE</span>). Para que el orden
+    // alfabético use el NOMBRE y no los atributos del HTML, al ordenar/filtrar
+    // devolvemos solo el texto (el atributo data-producto tiene el nombre limpio).
+    function renderProducto(data, type) {
+      if (type === 'sort' || type === 'type' || type === 'filter') {
+        const m1 = /data-producto="([^"]*)"/.exec(String(data || ''));
+        if (m1) return m1[1];
+        return String(data || '').replace(/<[^>]*>/g, '');
+      }
+      return data;
+    }
+
     function rowsFor(lab) {
       let list = lab === 'todos' ? m.descuentos : m.descuentos.filter((d) => d.lab === lab);
       if (packsOnly) list = list.filter((d) => packSet.has(d.ean));
@@ -314,7 +345,6 @@
               UI.discountOrDash(d.publicado, UI.fmtPctDirect, { sm: true, pub: true }),
             ];
             if (conEspecial) row.push(UI.discountOrDash(d.especial, UI.fmtPctDirect, { sm: true }));
-            row.push(modChip);
             return row;
           }
           const row = [
@@ -324,19 +354,18 @@
             UI.discountOrDash(d.publicado, UI.fmtPctDirect, { sm: true, pub: true }),
           ];
           if (conEspecial) row.push(UI.discountOrDash(d.especial, UI.fmtPctDirect, { sm: true }));
-          row.push(modChip);
           return row;
         }
 
         if (mobile && descEspecialOnly) {
-          return [productoCell, UI.discountOrDash(d.especial, UI.fmtPctDirect)];
+          return [productoCell, descCell(d.especial)];
         }
         if (mobile) {
           return [
             UI.favToggleHtml(d.lab, d.ean),
             productoCell,
-            UI.discountOrDash(d.exclusivo, UI.fmtPctDirect, { sm: true }),
-            UI.discountOrDash(d.publicado, UI.fmtPctDirect, { sm: true, pub: true }),
+            descCell(d.exclusivo, { sm: true }),
+            descCell(d.publicado, { sm: true, pub: true }),
             modChip,
           ];
         }
@@ -344,10 +373,10 @@
           UI.favToggleHtml(d.lab, d.ean),
           UI.labPill(d.lab, 'sm'),
           productoCell,
-          UI.discountOrDash(d.exclusivo, UI.fmtPctDirect),
-          UI.discountOrDash(d.publicado, UI.fmtPctDirect, { pub: true }),
+          descCell(d.exclusivo),
+          descCell(d.publicado, { pub: true }),
         ];
-        if (conEspecial) row.push(UI.discountOrDash(d.especial, UI.fmtPctDirect));
+        if (conEspecial) row.push(descCell(d.especial));
         row.push(modChip);
         return row;
       });
@@ -362,9 +391,9 @@
       const conEspecial = showsEspecial(lab);
       let columns, orderIdx;
 
-      const colExcl = { title: '<span class="th-full">Exclusivo</span><span class="th-short">Excl.</span>', width: '76px', className: 'td-desc' };
-      const colPubl = { title: '<span class="th-full">Publicado</span><span class="th-short">Publ.</span>', width: '76px', className: 'td-desc' };
-      const colEsp  = { title: '<span class="th-full">Especial</span><span class="th-short">Esp.</span>', width: '76px', className: 'td-desc' };
+      const colExcl = { title: '<span class="th-full">Exclusivo</span><span class="th-short">Excl.</span>', width: '76px', className: 'td-desc', render: renderDesc, type: 'num' };
+      const colPubl = { title: '<span class="th-full">Publicado</span><span class="th-short">Publ.</span>', width: '76px', className: 'td-desc', render: renderDesc, type: 'num' };
+      const colEsp  = { title: '<span class="th-full">Especial</span><span class="th-short">Esp.</span>', width: '76px', className: 'td-desc', render: renderDesc, type: 'num' };
       const colMod  = { title: '<span class="th-full">Módulos</span><span class="th-short">Mód.</span>', width: '66px', orderable: false, className: 'td-desc' };
 
       if (printMode && mobile) {
@@ -374,7 +403,6 @@
           { title: 'Publ.', className: 'td-desc' },
         ];
         if (conEspecial) columns.push({ title: 'Desc. Esp.', className: 'td-desc' });
-        columns.push({ title: 'Mód.', orderable: false, className: 'td-desc' });
         orderIdx = 0;
       } else if (printMode) {
         columns = [
@@ -384,20 +412,19 @@
           { title: 'Publ.', className: 'td-desc' },
         ];
         if (conEspecial) columns.push({ title: 'Desc. Esp.', className: 'td-desc' });
-        columns.push({ title: 'Mód.', orderable: false, className: 'td-desc' });
         orderIdx = 1;
       } else if (mobile && descEspecialOnly) {
         columns = [
-          { title: 'Producto', className: 'td-producto' },
-          { title: 'Descuento Especial', width: '110px' },
+          { title: 'Producto', className: 'td-producto', render: renderProducto },
+          { title: 'Descuento Especial', width: '110px', render: renderDesc, type: 'num' },
         ];
         orderIdx = 0;
       } else if (mobile) {
         columns = [
           { width: '20px', orderable: false },
-          { title: 'Producto', className: 'td-producto' },
-          { title: 'Excl.', width: '42px' },
-          { title: 'Publ.', width: '42px' },
+          { title: 'Producto', className: 'td-producto', render: renderProducto },
+          { title: 'Excl.', width: '42px', render: renderDesc, type: 'num' },
+          { title: 'Publ.', width: '42px', render: renderDesc, type: 'num' },
           { title: 'Mod.', width: '34px', orderable: false },
         ];
         orderIdx = 1;
@@ -405,7 +432,7 @@
         columns = [
           { width: '26px', orderable: false },
           { title: 'Laboratorio', width: '95px' },
-          { title: 'Producto', className: 'td-producto' },
+          { title: 'Producto', className: 'td-producto', render: renderProducto },
           colExcl,
           colPubl,
         ];

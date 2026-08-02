@@ -657,12 +657,44 @@ html, body { overflow-x: hidden; }
   #main { margin-left: 0 !important; }
   body { background: #fff; }
   .module-card, .lab-card, .table-card { box-shadow: none !important; border: 1px solid #ccc !important; }
+
+  /* --- Clave: el shell es flex con min-height:100vh, y eso rompe el paginado
+     (el navegador no reparte en páginas dentro de un contexto flex/altura fija).
+     En impresión lo pasamos a flujo de bloque normal. --- */
+  #app, #main, #page-content {
+    display: block !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* --- Evitar que las filas se corten al llegar al final de la hoja --- */
+  /* El contenedor con scroll/overflow rompe el paginado de impresión: lo liberamos */
+  .table-card { overflow: visible !important; }
+  .dataTables_wrapper, .dataTables_scroll, .dataTables_scrollHead,
+  .dataTables_scrollBody { overflow: visible !important; height: auto !important; max-height: none !important; }
+  /* Repetir el encabezado de la tabla en cada página impresa */
+  table.styled-table thead, table.dataTable thead { display: table-header-group; }
+  table.styled-table thead th { position: static !important; }
+  /* No partir una fila entre dos páginas */
+  table.styled-table tr, table.dataTable tr,
+  .styled-table tbody td, .dataTable tbody td {
+    break-inside: avoid !important; page-break-inside: avoid !important;
+  }
+
+  /* Detalle de módulo (modal): que ninguna línea de producto se corte */
+  .module-line { break-inside: avoid !important; page-break-inside: avoid !important; }
 }
 
 /* ---------- Impresión de Módulos como tarjetas de detalle ---------- */
 #print-modulos-area { display: none; }
-.print-mod-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-.print-mod-card { border: 1px solid #bbb; border-top: 3px solid #999; border-radius: 6px; padding: 8px 10px; break-inside: avoid; page-break-inside: avoid; }
+.print-mod-grid { column-count: 2; column-gap: 10px; }
+.print-mod-card {
+  display: inline-block; width: 100%; box-sizing: border-box;
+  margin: 0 0 10px; border: 1px solid #bbb; border-top: 3px solid #999;
+  border-radius: 6px; padding: 8px 10px;
+  break-inside: avoid; page-break-inside: avoid; -webkit-column-break-inside: avoid;
+}
 .print-mod-card .pmc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
 .print-mod-card .pmc-title { font-weight: 700; font-size: 12.5px; line-height: 1.25; color: #111; }
 .print-mod-card .pmc-badge { font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
@@ -678,10 +710,35 @@ html, body { overflow-x: hidden; }
 .print-mod-card table.pmc-table td { padding: 2px 4px; border-bottom: 1px solid #eee; color: #222; }
 .print-mod-card table.pmc-table td.pc-num { text-align: right; white-space: nowrap; color: #444; }
 
+/* ---------- Impresión de Módulos en vista de Lista (una línea por módulo) ---------- */
+.print-mod-list { border: 1px solid #bbb; border-radius: 6px; overflow: hidden; }
+.print-mod-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 5px 10px; border-bottom: 1px solid #e2e2e2; border-left: 3px solid #999;
+  font-size: 10px; break-inside: avoid; page-break-inside: avoid;
+}
+.print-mod-row:last-child { border-bottom: none; }
+.print-mod-row .pmr-lab { font-size: 8.5px; font-weight: 700; padding: 1px 7px; border-radius: 10px; white-space: nowrap; flex-shrink: 0; }
+.print-mod-row .pmr-main { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.print-mod-row .pmr-name { font-weight: 700; color: #111; }
+.print-mod-row .pmr-code { font-family: var(--font-mono); font-size: 8.5px; color: #888; }
+.print-mod-row .pmr-prods { font-size: 9px; color: #666; }
+.print-mod-row .pmr-obs { font-size: 8.5px; font-weight: 600; color: #92400e; }
+.print-mod-row .pmr-cols { display: flex; align-items: center; gap: 12px; white-space: nowrap; flex-shrink: 0; }
+.print-mod-row .pmr-unid { color: #555; }
+.print-mod-row .pmr-unid b { color: #111; font-family: var(--font-mono); }
+.print-mod-row .pmr-desc { font-family: var(--font-mono); font-weight: 700; color: #0d9488; }
+
 @media print {
   body.printing-modulos #modulos-output,
   body.printing-modulos #cat-filters { display: none !important; }
   body.printing-modulos #print-modulos-area { display: block !important; }
+  #print-modulos-area, .print-mod-grid { overflow: visible !important; }
+  .print-mod-card, .print-mod-row {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    -webkit-column-break-inside: avoid !important;
+  }
 }
 body.printing-modal #app,
 body.printing-modal #loading-screen,
