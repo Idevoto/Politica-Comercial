@@ -467,19 +467,45 @@
     }
 
     // Remonta la tabla (cambio de lab / packs / desc. especial) SIN que la página
-    // salte hasta arriba. Guardamos la posición de scroll actual y la restauramos
-    // tras remontar. Contemplamos tanto el scroll de la ventana como el del
-    // contenedor #main (según cuál sea el que efectivamente scrollea en este layout).
+    // salte hasta arriba. Guardamos la posición y la sostenemos unos frames, porque
+    // DataTables (scrollY) reajusta el layout después del remonte y eso vuelve a
+    // tirar la vista arriba. Si el usuario scrollea a propósito, dejamos de forzar.
     function mountTableKeepScroll(lab) {
       const mainEl = document.getElementById('main');
       const winY = window.scrollY || window.pageYOffset || 0;
       const mainY = mainEl ? mainEl.scrollTop : 0;
+
+      // Evitar el colapso de altura: mientras se destruye/recrea la tabla, el
+      // contenedor queda casi sin alto y el documento se acorta, lo que hace que el
+      // navegador suba el scroll. Reservamos su altura actual durante el remonte.
+      const card = container.querySelector('.table-card');
+      const prevMinH = card ? card.style.minHeight : '';
+      if (card) card.style.minHeight = card.offsetHeight + 'px';
+
       mountTable(lab);
-      // Restauramos en el próximo frame, cuando el DOM ya se redibujó.
-      requestAnimationFrame(() => {
-        window.scrollTo(0, winY);
-        if (mainEl) mainEl.scrollTop = mainY;
-      });
+
+      let cancelled = false;
+      const onUserScroll = () => { cancelled = true; };
+      window.addEventListener('wheel', onUserScroll, { passive: true, once: true });
+      window.addEventListener('touchmove', onUserScroll, { passive: true, once: true });
+
+      const restore = () => {
+        if (cancelled) return;
+        if (winY) window.scrollTo(0, winY);
+        if (mainEl && mainY) mainEl.scrollTop = mainY;
+      };
+      restore();
+      requestAnimationFrame(restore);
+      let n = 0;
+      const iv = setInterval(() => {
+        restore();
+        if (cancelled || ++n >= 10) {
+          clearInterval(iv);
+          if (card) card.style.minHeight = prevMinH; // liberar la altura reservada
+          window.removeEventListener('wheel', onUserScroll);
+          window.removeEventListener('touchmove', onUserScroll);
+        }
+      }, 30);
     }
 
     mountTable(activeLab);
@@ -506,8 +532,7 @@
         // ese otro laboratorio, para que el título, el logo y los contadores queden
         // coherentes con la tabla. "Todos" vuelve a la vista general de Descuentos.
         if (embeddedInLab) {
-          if (lab === 'todos') Router.go('descuentos', {});
-          else Router.go('laboratorios', { lab: lab });
+          Router.go('laboratorios', { lab: lab }, { keepScroll: true });
           return;
         }
         container.querySelectorAll('#desc-filters .chip[data-lab]').forEach((c) => c.classList.remove('active'));
@@ -724,6 +749,7 @@
     const m = model();
     const labs = m.labs;
     let activeLab = (params && params.lab) || labs[0];
+    const embeddedInLab = !!(params && params.embeddedInLab);
     let activeCat = 'todas';
     let query = '';
     let viewMode = State.getModulosView();
@@ -753,7 +779,9 @@
     let lastFiltered = [];
 
     function render() {
-      const all = m.modulosPorLab[activeLab] || [];
+      const all = activeLab === 'todos'
+        ? labs.reduce((acc, l) => acc.concat(m.modulosPorLab[l] || []), [])
+        : (m.modulosPorLab[activeLab] || []);
       const q = query.trim().toLowerCase();
       const filtered = all.filter((mod) => {
         if (q && !mod.nombre.toLowerCase().includes(q) && !mod.productos.some((p) => (p.producto || '').toLowerCase().includes(q))) return false;
@@ -769,8 +797,9 @@
         catBar.innerHTML = `<span class="filter-label">Categoría</span>
           <span class="chip ${activeCat === 'todas' ? 'active' : ''}" data-cat="todas">Todas</span>
           ${cats.map((c) => `<span class="chip ${activeCat === c ? 'active' : ''}" data-cat="${UI.escapeHtml(c)}">${UI.escapeHtml(c)}</span>`).join('')}`;
-        catBar.querySelectorAll('.chip').forEach((chip) => chip.addEventListener('click', () => {
-          activeCat = chip.getAttribute('data-cat'); render();
+        catBar.querySelectorAll('.chip').forEach((chip) => chip.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          activeCat = chip.getAttribute('data-cat'); renderKeepScroll();
         }));
       } else {
         catBar.style.display = 'none';
@@ -806,11 +835,68 @@
       });
     }
 
+    // Re-renderiza el listado de módulos. Para cambio de CATEGORÍA el resultado
+    // suele ser más corto, así que en vez de intentar mantener una posición que
+    // quizá ya no exista (y terminar saltando al tope), llevamos la vista al inicio
+    // del listado de módulos: la barra de laboratorio/categoría queda arriba y se
+    // ven los resultados filtrados desde el principio, sin saltos bruscos.
+    function renderAndScrollToFilters() {
+      render();
+      const anchor = container.querySelector('#cat-filters') || container.querySelector('.filter-bar');
+      if (anchor && anchor.scrollIntoView) {
+        anchor.scrollIntoView({ block: 'start' });
+      }
+    }
+    // Re-render conservando la posición actual. Para que el scroll no salte cuando
+    // el nuevo listado es más corto (p.ej. al filtrar por categoría), reservamos la
+    // altura del bloque de salida durante el redibujado, así el documento no se
+    // encoge de golpe. Liberamos la altura cuando el contenido nuevo se estabiliza.
+    function renderKeepScroll() {
+      const se = document.scrollingElement || document.documentElement;
+      const y = se ? se.scrollTop : (window.scrollY || 0);
+      const out = container.querySelector('#modulos-output');
+      const reservedH = out ? out.offsetHeight : 0;
+      if (out && reservedH) out.style.minHeight = reservedH + 'px';
+
+      render();
+
+      const restore = () => { window.scrollTo(0, y); if (se) se.scrollTop = y; };
+      restore();
+      requestAnimationFrame(restore);
+      const outNew = container.querySelector('#modulos-output');
+      let n = 0, lastH = -1, stable = 0;
+      const iv = setInterval(() => {
+        restore();
+        n++;
+        let realH = 0;
+        if (outNew) {
+          const prev = outNew.style.minHeight;
+          outNew.style.minHeight = '0px';
+          realH = outNew.scrollHeight;
+          outNew.style.minHeight = prev;
+        }
+        if (realH === lastH) stable++; else { stable = 0; lastH = realH; }
+        if (stable >= 4 || n >= 60) {
+          clearInterval(iv);
+          if (outNew) outNew.style.minHeight = '';
+          restore();
+        }
+      }, 30);
+    }
+
     container.querySelectorAll('.filter-bar .chip[data-lab]').forEach((chip) => {
       chip.addEventListener('click', () => {
+        const lab = chip.getAttribute('data-lab');
+        // Dentro de la vista de un laboratorio, cambiar de lab navega a la vista de
+        // ese otro laboratorio (título/logo/contadores coherentes), en la solapa
+        // Módulos y sin saltar el scroll.
+        if (embeddedInLab) {
+          Router.go('laboratorios', { lab: lab, tab: 'modulos' }, { keepScroll: true });
+          return;
+        }
         container.querySelectorAll('.filter-bar .chip[data-lab]').forEach((c) => c.classList.remove('active'));
         chip.classList.add('active');
-        activeLab = chip.getAttribute('data-lab');
+        activeLab = lab;
         activeCat = 'todas';
         render();
       });
@@ -844,7 +930,7 @@
   // ======================================================================
   function pageLaboratorios(container, params) {
     const m = model();
-    if (params && params.lab) return pageLaboratorioDetalle(container, params.lab);
+    if (params && params.lab) return pageLaboratorioDetalle(container, params.lab, params.tab);
 
     container.innerHTML = `
       <div class="page-head"><div><h1>Laboratorios</h1><p class="subtitle">Elegí un laboratorio para ver sus descuentos y módulos.</p></div></div>
@@ -855,23 +941,32 @@
     wireLabCardClicks(grid);
   }
 
-  function pageLaboratorioDetalle(container, lab) {
+  function pageLaboratorioDetalle(container, lab, initialTab) {
     const m = model();
+    const esTodos = (lab === 'todos');
     const meta = State.labMeta(lab);
-    const nProd = m.descuentos.filter((d) => d.lab === lab).length;
-    const nMod = (m.modulosPorLab[lab] || []).length;
+    const nProd = esTodos ? m.descuentos.length : m.descuentos.filter((d) => d.lab === lab).length;
+    const nMod = esTodos
+      ? m.labs.reduce((a, l) => a + (m.modulosPorLab[l] || []).length, 0)
+      : (m.modulosPorLab[lab] || []).length;
+    const startTab = (initialTab === 'modulos') ? 'modulos' : 'descuentos';
+
+    // Encabezado: para "Todos" mostramos un título genérico (sin logo de un lab).
+    const headHtml = esTodos
+      ? `<div><h1>Todos los laboratorios</h1><p class="subtitle">${nProd} productos con descuento · ${nMod} módulos</p></div>`
+      : `${UI.labLogo(lab, 52)}
+         <div><h1>${UI.escapeHtml(lab)}</h1><p class="subtitle">${nProd} productos con descuento · ${nMod} módulos</p></div>`;
 
     container.innerHTML = `
       <div style="margin-bottom:14px;"><span class="chip" id="btn-volver" style="cursor:pointer;"><i class="fa-solid fa-arrow-left"></i> Laboratorios</span></div>
       <div class="page-head">
         <div style="display:flex;align-items:center;gap:14px;">
-          ${UI.labLogo(lab, 52)}
-          <div><h1>${UI.escapeHtml(lab)}</h1><p class="subtitle">${nProd} productos con descuento · ${nMod} módulos</p></div>
+          ${headHtml}
         </div>
       </div>
-      <div class="filter-bar">
-        <span class="chip active" data-tab="descuentos">Descuentos</span>
-        <span class="chip" data-tab="modulos">Módulos</span>
+      <div class="filter-bar" id="lab-tabs-bar">
+        <span class="chip ${startTab === 'descuentos' ? 'active' : ''}" data-tab="descuentos">Descuentos</span>
+        <span class="chip ${startTab === 'modulos' ? 'active' : ''}" data-tab="modulos">Módulos</span>
       </div>
       <div id="lab-tab-output"></div>
     `;
@@ -880,16 +975,17 @@
     const out = container.querySelector('#lab-tab-output');
     function showTab(tab) {
       if (tab === 'descuentos') pageDescuentos(out, { lab, embeddedInLab: true });
-      else pageModulos(out, { lab });
+      else pageModulos(out, { lab, embeddedInLab: true });
     }
-    container.querySelectorAll('.filter-bar .chip[data-tab]').forEach((chip) => {
+    const tabsBar = container.querySelector('#lab-tabs-bar');
+    tabsBar.querySelectorAll('.chip[data-tab]').forEach((chip) => {
       chip.addEventListener('click', () => {
-        container.querySelectorAll('.filter-bar .chip[data-tab]').forEach((c) => c.classList.remove('active'));
+        tabsBar.querySelectorAll('.chip[data-tab]').forEach((c) => c.classList.remove('active'));
         chip.classList.add('active');
         showTab(chip.getAttribute('data-tab'));
       });
     });
-    showTab('descuentos');
+    showTab(startTab);
   }
 
   // ======================================================================
@@ -1150,26 +1246,97 @@
     document.querySelectorAll('.nav-item').forEach((el) => el.classList.toggle('active', el.getAttribute('data-page') === page));
   }
 
-  function render() {
+  function render(opts) {
+    opts = opts || {};
     const { page, params } = State.App.route;
     const container = document.getElementById('page-content');
+    const mainEl = document.getElementById('main');
+    // ¿Conservar scroll? (navegación entre laboratorios desde acceso rápido / chips).
+    const keep = !!opts.keepScroll || pendingKeepScroll;
+    const winY = keep ? (pendingKeepScroll ? pendingScrollY : (window.scrollY || window.pageYOffset || 0)) : 0;
+    pendingKeepScroll = false; // se consume una sola vez
+
+    // CLAVE para conservar el scroll: si vaciamos #page-content, el documento
+    // colapsa a altura ~0, el navegador fuerza el scroll a 0, y aunque después
+    // restauremos, la tabla nueva (DataTables) tarda en montar y el documento
+    // sigue corto un rato. Para evitarlo, fijamos una altura mínima igual a la
+    // que tenía antes de vaciar, y la liberamos cuando el contenido nuevo ya montó.
+    let reservedH = 0;
+    if (keep) reservedH = container.offsetHeight;
+
     container.innerHTML = '';
+    if (keep && reservedH) container.style.minHeight = reservedH + 'px';
     renderActiveNav(page);
     PAGES[page](container, params);
-    container.scrollTop = 0;
-    document.getElementById('main').scrollTop = 0;
-    window.scrollTo(0, 0);
+
+    if (keep) {
+      const se = document.scrollingElement || document.documentElement;
+      const restore = () => { if (winY) { window.scrollTo(0, winY); if (se) se.scrollTop = winY; } };
+      if (scrollRestoreIv) clearInterval(scrollRestoreIv);
+      restore();
+      requestAnimationFrame(restore);
+      // Sostenemos el scroll y la altura reservada hasta que la altura real del
+      // contenido nuevo se estabilice (deje de crecer entre chequeos). Recién ahí
+      // liberamos el minHeight, así el documento nunca se encoge de golpe y el
+      // scroll no salta "unos segundos después" (que pasaba cuando los logos y el
+      // resto del contenido terminaban de cargar tarde).
+      let n = 0;
+      let lastH = -1;
+      let stableCount = 0;
+      scrollRestoreIv = setInterval(() => {
+        restore();
+        n++;
+        // Altura real del contenido, ignorando el minHeight que le pusimos.
+        const prevMin = container.style.minHeight;
+        container.style.minHeight = '0px';
+        const realH = container.scrollHeight;
+        container.style.minHeight = prevMin;
+
+        if (realH === lastH) stableCount++; else { stableCount = 0; lastH = realH; }
+
+        // Estable por ~120ms seguidos, o tope de seguridad a ~4s.
+        if (stableCount >= 4 || n >= 130) {
+          clearInterval(scrollRestoreIv);
+          scrollRestoreIv = null;
+          container.style.minHeight = '';
+          restore();
+          // un último empujón por si liberar la altura movió algo
+          requestAnimationFrame(restore);
+        }
+      }, 30);
+    } else {
+      if (scrollRestoreIv) { clearInterval(scrollRestoreIv); scrollRestoreIv = null; }
+      container.style.minHeight = '';
+      container.scrollTop = 0;
+      if (mainEl) mainEl.scrollTop = 0;
+      window.scrollTo(0, 0);
+    }
+
     if (document.getElementById('sidebar').classList.contains('open')) {
       document.getElementById('sidebar').classList.remove('open');
       document.getElementById('sidebar-backdrop').classList.remove('show');
     }
   }
 
-  function go(page, params) {
+  // Bandera efímera: cuando go() pide conservar el scroll, guardamos la posición
+  // ANTES de cambiar el hash (porque el cambio de hash puede resetear el scroll),
+  // y el próximo render() la restaura y la consume una sola vez.
+  let pendingKeepScroll = false;
+  let pendingScrollY = 0;
+  let scrollRestoreIv = null;
+
+  function go(page, params, opts) {
     params = params || {};
+    opts = opts || {};
+    if (opts.keepScroll) {
+      pendingKeepScroll = true;
+      const se = document.scrollingElement || document.documentElement;
+      pendingScrollY = se ? se.scrollTop : (window.scrollY || window.pageYOffset || 0);
+    }
     const sp = new URLSearchParams();
     if (params.lab) sp.set('lab', params.lab);
     if (params.q) sp.set('q', params.q);
+    if (params.tab) sp.set('tab', params.tab);
     const qs = sp.toString();
     const newHash = '#/' + page + (qs ? '?' + qs : '');
     if (location.hash === newHash) {
@@ -1181,6 +1348,9 @@
   }
 
   function initRouter() {
+    // Evitamos que el navegador reposicione el scroll por su cuenta al cambiar el
+    // hash: lo controlamos nosotros (para poder conservarlo entre laboratorios).
+    try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) { /* noop */ }
     window.addEventListener('hashchange', () => {
       const parsed = parseHash();
       State.App.route = parsed;
