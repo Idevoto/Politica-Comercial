@@ -341,6 +341,19 @@
     return out;
   }
 
+  // Serialización determinística de una huella: ordena las claves de cada objeto
+  // para que dos snapshots con el mismo contenido den siempre la misma cadena,
+  // sin depender del orden en que se recorrieron las hojas del Excel.
+  function stableStr(v) {
+    if (v === null || typeof v !== 'object') return JSON.stringify(v);
+    if (Array.isArray(v)) return '[' + v.map(stableStr).join(',') + ']';
+    return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + stableStr(v[k])).join(',') + '}';
+  }
+  function mismaHuella(a, b) {
+    if (!a || !b) return false;
+    try { return stableStr(a) === stableStr(b); } catch (e) { return false; }
+  }
+
   function getSeenSnapshot() {
     try { const raw = safeGet(LS_SEEN_SNAPSHOT); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
   }
@@ -364,6 +377,17 @@
     if (!prevSnap) {
       saveSeenSnapshot(nextSnap);
       saveLastChanges(null);
+      App.pendingChanges = null;
+      return null;
+    }
+
+    // Misma versión del Excel que la ya vista por el usuario. No se recalcula el
+    // diff ni se toca el último diff guardado, y el punto rojo no se vuelve a
+    // encender. Este corte es necesario porque diff.total NO sirve como criterio:
+    // todo módulo con texto en la columna H entra en modulosCambiados aunque no
+    // haya cambiado nada, así que total nunca da 0 y el aviso reaparecía en cada
+    // recarga mostrando módulos comparados contra sí mismos.
+    if (mismaHuella(prevSnap, nextSnap)) {
       App.pendingChanges = null;
       return null;
     }
