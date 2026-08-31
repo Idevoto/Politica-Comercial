@@ -672,24 +672,6 @@ html, body { overflow-x: hidden; }
   table.mcm-table td.mcm-num { text-align: right; color: var(--text-muted); }
   table.mcm-table tbody tr:last-child td { border-bottom: none; }
 
-  /* ---- Novedades: tarjeta de módulo modificado (.cmc-*).
-     En vertical las columnas fijas (52 + 52 + 40 de margen + 66 + 58) se comían
-     casi todo el ancho y al Producto le quedaban ~60px. Sumado a
-     overflow-wrap:anywhere, el nombre se partía letra por letra.
-     Se comprimen las columnas numéricas y se corta por palabra.
-     A partir de 561px (celular horizontal y escritorio) no aplica nada de esto. ---- */
-  .cmc-head { padding: 10px 12px; flex-wrap: wrap; row-gap: 6px; }
-  .cmc-head .cmc-name { font-size: 13px; min-width: 0; overflow-wrap: break-word; }
-  .cmc-row { padding: 0 8px 0 12px; }
-  .cmc-row .cmc-prod {
-    font-size: 12px; line-height: 1.35; gap: 5px; flex-wrap: wrap;
-    overflow-wrap: break-word; word-break: normal;
-  }
-  .cmc-row .cmc-cell { width: 40px; font-size: 11.5px; }
-  .cmc-row .cmc-mod { margin-left: 10px; }
-  .cmc-row .cmc-mod .cmc-cell:first-child { padding-left: 8px; width: 44px; }
-  .cmc-row .cmc-mod .cmc-cell:last-child { width: 40px; }
-  .cmc-head-row { font-size: 8.5px; }
 }
 
 /* ---------- Indicador de novedades en el sidebar ---------- */
@@ -764,6 +746,31 @@ html, body { overflow-x: hidden; }
 .cmc-cell.chg-old { color: var(--text-faint); }
 .cmc-head-row { font-size: 10.5px; text-transform: uppercase; letter-spacing: .02em; color: var(--text-faint); font-weight: 700; background: var(--surface-2); }
 .cmc-head-row .cmc-cell { font-family: var(--font-sans); }
+
+/* ---------- Novedades: ajuste para pantallas angostas ----------
+   Va DESPUÉS de las definiciones base de .cmc-* a propósito: una media query
+   no suma especificidad, así que si estuviera más arriba la pisarían las
+   reglas de escritorio. ---------- */
+@media (max-width: 560px) {
+  /* ---- Novedades: tarjeta de módulo modificado (.cmc-*).
+     En vertical las columnas fijas (52 + 52 + 40 de margen + 66 + 58) se comían
+     casi todo el ancho y al Producto le quedaban ~60px. Sumado a
+     overflow-wrap:anywhere, el nombre se partía letra por letra.
+     Se comprimen las columnas numéricas y se corta por palabra.
+     A partir de 561px (celular horizontal y escritorio) no aplica nada de esto. ---- */
+  .cmc-head { padding: 10px 12px; flex-wrap: wrap; row-gap: 6px; }
+  .cmc-head .cmc-name { font-size: 13px; min-width: 0; overflow-wrap: break-word; }
+  .cmc-row { padding: 0 8px 0 12px; }
+  .cmc-row .cmc-prod {
+    font-size: 12px; line-height: 1.35; gap: 5px; flex-wrap: wrap;
+    overflow-wrap: break-word; word-break: normal;
+  }
+  .cmc-row .cmc-cell { width: 40px; font-size: 11.5px; }
+  .cmc-row .cmc-mod { margin-left: 10px; }
+  .cmc-row .cmc-mod .cmc-cell:first-child { padding-left: 8px; width: 44px; }
+  .cmc-row .cmc-mod .cmc-cell:last-child { width: 40px; }
+  .cmc-head-row { font-size: 8.5px; }
+}
 .chg-tag { font-size: 10px; font-weight: 700; padding: 1px 8px; border-radius: var(--radius-pill); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .chg-tag i { font-size: 9px; }
 .chg-tag.add { background: var(--discount-soft); color: var(--discount); }
