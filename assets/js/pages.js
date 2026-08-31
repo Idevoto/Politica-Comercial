@@ -10,6 +10,7 @@
     { key: 'modulos', label: 'Módulos', icon: 'fa-solid fa-layer-group' },
     { key: 'cuentas', label: 'Cuentas Especiales', icon: 'fa-solid fa-handshake' },
     { key: 'favoritos', label: 'Favoritos', icon: 'fa-solid fa-star' },
+    { key: 'novedades', label: 'Novedades', icon: 'fa-solid fa-bell' },
     { key: 'acerca', label: 'Acerca de', icon: 'fa-solid fa-circle-info' },
   ];
 
@@ -1202,6 +1203,26 @@
   }
 
   // ======================================================================
+  // NOVEDADES (cambios respecto de la última versión del Excel)
+  // ======================================================================
+  function pageNovedades(container) {
+    const diff = State.App.pendingChanges || State.getLastChanges();
+    container.innerHTML = `
+      <div class="page-head">
+        <div><h1>Novedades</h1><p class="subtitle">Últimos cambios detectados en la política comercial.</p></div>
+      </div>
+      <div class="about-card" style="max-width:760px;">${UI.changesBodyHtml(diff)}</div>
+    `;
+    // Al entrar a Novedades se consideran vistos: se apaga el puntito rojo y no
+    // vuelve a titilar hasta la próxima actualización del Excel. El recuadro con el
+    // detalle queda igualmente disponible acá hasta el próximo cambio.
+    if (State.App.pendingChanges) {
+      State.acknowledgeChanges();
+      if (window.Router && Router.showChangesBadge) Router.showChangesBadge(false);
+    }
+  }
+
+  // ======================================================================
   // ACERCA DE
   // ======================================================================
   function pageAcerca(container) {
@@ -1231,7 +1252,7 @@
   const PAGES = {
     inicio: pageInicio, descuentos: pageDescuentos, modulos: pageModulos,
     laboratorios: pageLaboratorios, buscar: pageBuscar, favoritos: pageFavoritos,
-    cuentas: pageCuentas, acerca: pageAcerca,
+    cuentas: pageCuentas, novedades: pageNovedades, acerca: pageAcerca,
   };
 
   function parseHash() {
@@ -1373,6 +1394,7 @@
       return `<div class="nav-item" data-page="${item.key}"><i class="${item.icon}"></i>${item.label}${count !== '' ? `<span class="count">${count}</span>` : ''}</div>`;
     }).join('');
     nav.querySelectorAll('.nav-item').forEach((el) => el.addEventListener('click', () => go(el.getAttribute('data-page'), {})));
+    if (State.App.pendingChanges) showChangesBadge(true);
     document.addEventListener('pf:favorites-changed', () => {
       const favItem = nav.querySelector('[data-page="favoritos"] .count');
       const total = State.App.favorites.size + State.App.favoritesMod.size;
@@ -1380,7 +1402,17 @@
     });
   }
 
-  const Router = { go, initRouter, renderSidebar, buildDerivedIndexes, wireInlineSearch };
+  // Muestra/oculta el indicador de "hay novedades" en el ítem de Novedades.
+  function showChangesBadge(show) {
+    const item = document.querySelector('.nav-item[data-page="novedades"]');
+    if (!item) return;
+    let dot = item.querySelector('.nav-badge');
+    if (show) {
+      if (!dot) { dot = document.createElement('span'); dot.className = 'nav-badge'; item.appendChild(dot); }
+    } else if (dot) { dot.remove(); }
+  }
+
+  const Router = { go, initRouter, renderSidebar, buildDerivedIndexes, wireInlineSearch, showChangesBadge };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Router;
   else global.Router = Router;

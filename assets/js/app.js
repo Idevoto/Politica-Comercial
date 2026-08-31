@@ -66,6 +66,8 @@
     State.App.dataMeta = meta;
     State.App.excelBuffer = rawBuffer || null;
     State.cacheData(model, meta);
+    // Comparar contra la última versión vista por este usuario (Novedades).
+    State.detectChanges(model);
     console.log('[PF] Excel cargado. Fuente:', meta && meta.source, '| Filas leídas de "Detalle Pack":', (sheets['Detalle Pack'] || []).length, '| Packs detectados:', (model.packEans || []).length);
     return model;
   }
@@ -131,6 +133,9 @@
     Router.buildDerivedIndexes();
     Router.renderSidebar();
     Router.initRouter();
+    if (State.App.pendingChanges) {
+      Router.showChangesBadge(true);
+    }
   }
 
   function wireFileLoaderUI(onFile) {

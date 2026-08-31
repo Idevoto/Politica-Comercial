@@ -290,6 +290,7 @@
     { sheet: 'Modulos Millet', lab: 'Millet' },
     { sheet: 'Modulos Ethical', lab: 'Ethical' },
     { sheet: 'Modulos Sidus', lab: 'Sidus' },
+    { sheet: 'Modulos Craveri', lab: 'Craveri' },
   ];
 
   function buildModel(sheets) {
